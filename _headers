@@ -1,0 +1,22 @@
+# Cloudflare Pages headers.
+#
+# Deliberately NO Content-Security-Policy. The page boots Pyodide (Python via
+# WebAssembly) by injecting a <script> from cdn.jsdelivr.net, falling back to
+# unpkg.com, and Pyodide then fetches its own .wasm and package files at
+# runtime. A CSP tight enough to be worth having would need, at minimum:
+#
+#   script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:
+#              https://cdn.jsdelivr.net https://unpkg.com;
+#   connect-src 'self' https://cdn.jsdelivr.net https://unpkg.com;
+#   worker-src blob:;
+#
+# That is easy to get subtly wrong, and when it is wrong the failure is silent:
+# the page still renders and only the interactive demo dies. Add it once someone
+# can load the page and actually run the Python panel to confirm it survives.
+
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: DENY
+  Permissions-Policy: geolocation=(), microphone=(), camera=(), interest-cohort=()
+  Strict-Transport-Security: max-age=63072000; includeSubDomains

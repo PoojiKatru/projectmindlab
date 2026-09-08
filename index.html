@@ -202,21 +202,35 @@ input:focus-visible{outline:2px solid var(--ochre);outline-offset:1px}
 }
 
 /* ---- log ---- */
-.folk{display:grid;grid-template-columns:repeat(3,1fr);gap:30px;margin:26px 0 36px}
-.person{display:block}
-.person .ph{width:100%;aspect-ratio:4/3;background:var(--cream-dk);border:1px solid #CFC3AE;
-  display:block;object-fit:cover;margin-bottom:13px}
-.person .nm{font-family:var(--disp);font-size:20px;font-weight:600;display:block;
-  margin-bottom:12px;font-variation-settings:'SOFT' 40,'WONK' 1,'opsz' 30}
+/* About: the people. Wider than the rest of the page so the photos can breathe,
+   while prose above and below stays at a readable measure. */
+#p-about.page.on{max-width:1180px}
+#p-about .col{max-width:none}
+#p-about .col > h1,#p-about .col > h2,#p-about .col > p,
+#p-about .col > .slab{max-width:680px}
+.folk{margin:26px 0 40px;border-top:2px solid var(--navy)}
+.person{display:grid;grid-template-columns:320px 1fr;gap:40px;align-items:start;
+  padding:36px 0;border-bottom:1px solid var(--cream-dk)}
+.person .ph{width:100%;aspect-ratio:3/4;background:var(--cream-dk);border:1px solid #CFC3AE;
+  display:block;object-fit:cover}
+.person .nm{font-family:var(--disp);font-size:27px;font-weight:600;display:block;
+  line-height:1.15;font-variation-settings:'SOFT' 40,'WONK' 1,'opsz' 40}
+.person .role{font-family:var(--ui);font-size:14px;color:var(--mid);display:block;margin:6px 0 16px}
 .person .lab{font-family:var(--ui);font-size:12.5px;font-weight:600;letter-spacing:.03em;
-  color:var(--mid);display:block;width:fit-content;padding-bottom:2px;margin-bottom:7px;
+  color:var(--mid);display:block;width:fit-content;padding-bottom:2px;margin-bottom:9px;
   border-bottom:1.5px solid var(--navy)}
-.person .bio{color:var(--mid);font-size:15.5px;line-height:1.55;margin:0 0 15px}
-.person .pick{font-family:var(--tw);font-size:13px;line-height:1.5;margin:0 0 5px;
-  display:grid;grid-template-columns:104px 1fr;gap:6px;color:var(--navy)}
+.person .bio{font-size:16.5px;line-height:1.62;margin:0 0 18px;max-width:64ch}
+.person .picks{border-top:1px solid var(--cream-dk);padding-top:13px}
+.person .pick{font-family:var(--tw);font-size:13.5px;line-height:1.5;margin:0 0 6px;
+  display:grid;grid-template-columns:150px 1fr;gap:8px;color:var(--navy)}
 .person .pick b{font-weight:400;color:var(--mid)}
-@media(max-width:820px){.folk{grid-template-columns:1fr;gap:34px}
-  .person .ph{max-width:280px}}
+@media(max-width:900px){#p-about.page.on{max-width:none}}
+@media(max-width:760px){
+  .person{grid-template-columns:1fr;gap:20px;padding:28px 0}
+  .person .ph{max-width:260px;aspect-ratio:1/1}
+  .person .nm{font-size:23px}
+  .person .pick{grid-template-columns:135px 1fr}
+}
 .log{margin-top:44px;border-top:2px solid var(--navy)}
 .log ul{margin:0;padding:0}
 .log li{
@@ -474,28 +488,43 @@ code{font-family:var(--tw);font-size:16px;background:var(--ice);padding:1px 5px}
          Fill the em-dash after philosopher / mathematician with each pick. -->
     <div class="folk">
       <div class="person">
-        <div class="ph"></div>
-        <span class="nm">Shreya L.</span>
-        <span class="lab">bio</span>
-        <p class="bio">Parts I–III: proofs, statistics, randomness.</p>
-        <p class="pick"><b>philosopher</b>&mdash;</p>
-        <p class="pick"><b>mathematician</b>&mdash;</p>
+        <div class="ph"></div><!-- <img class="ph" src="photos/shreya.jpg" alt=""> -->
+        <div>
+          <span class="nm">Shreya L.</span>
+          <span class="role">Junior at Kennedy High School · Co-Founder of MindLab</span>
+          <span class="lab">bio</span>
+          <p class="bio">Hey! I’m Shreya, a junior at Kennedy High School and a co-founder of MindLab. I’m interested in the space where math, economics, and human behavior meet: why people make the decisions they do, how we judge risk, and how easily numbers can influence what we believe. I started thinking more about these topics after realizing that statistics and probability are often taught as formulas, even though they are factored in constantly when making choices in real life. That very idea became the foundation for MindLab and the book I co-wrote, <em>Beneath the Choice</em>. We built it around questions that go beyond simply getting the right answer, like how economic incentives shape the choices people make. My hope is that middle and early high-school students come away more willing to question information, trust their own reasoning, and see math as a tool for understanding the world rather than just a class to get through. In my free time, I’m usually reading, looking for a new coffee shop, or going on a hike.</p>
+          <div class="picks">
+            <p class="pick"><b>philosopher</b>Machiavelli</p>
+            <p class="pick"><b>mathematician</b>Ramanujan</p>
+          </div>
+        </div>
       </div>
       <div class="person">
-        <div class="ph"></div>
-        <span class="nm">Poojitha K.</span>
-        <span class="lab">bio</span>
-        <p class="bio">Parts IV–VI: reading data, game theory, economics.</p>
-        <p class="pick"><b>philosopher</b>&mdash;</p>
-        <p class="pick"><b>mathematician</b>&mdash;</p>
+        <div class="ph"></div><!-- <img class="ph" src="photos/poojitha.jpg" alt=""> -->
+        <div>
+          <span class="nm">Poojitha K.</span>
+          <span class="role">Junior at Troy High School · Co-Founder of MindLab</span>
+          <span class="lab">bio</span>
+          <p class="bio">Hey! I’m Poojitha, a junior at Troy High School and a co-founder of MindLab. I’ve always liked the creative side of computer science and math, especially being able to turn an idea into something people can actually use. I build websites for clubs at my school, so creating MindLab’s website felt like a natural way to help bring the project to life and make our resources easy for students to find. I also helped work on MindLab’s book, <em>Beneath the Choice</em>, which was a really different kind of project from building the website. It gave me the chance to think about how we could make each topic clear, interactive, and actually enjoyable to work through. Outside of MindLab, I spend my time reading, going on hikes, following racing, and stopping for matcha whenever I can.</p>
+          <div class="picks">
+            <p class="pick"><b>philosopher</b>Pythagoras</p>
+            <p class="pick"><b>mathematician</b>Ada Lovelace</p>
+          </div>
+        </div>
       </div>
       <div class="person">
-        <div class="ph"></div>
-        <span class="nm">Sriya V.</span>
-        <span class="lab">bio</span>
-        <p class="bio">Part VII: behavioural economics. Built the data lab.</p>
-        <p class="pick"><b>philosopher</b>&mdash;</p>
-        <p class="pick"><b>mathematician</b>&mdash;</p>
+        <div class="ph"></div><!-- <img class="ph" src="photos/sriya.jpg" alt=""> -->
+        <div>
+          <span class="nm">Sriya V.</span>
+          <span class="role">Junior at Oxford Academy · Co-Founder of MindLab</span>
+          <span class="lab">bio</span>
+          <p class="bio">Hey! I’m Sriya, a junior at Oxford Academy and a co-founder of MindLab. I’m interested in psychology and hope to become a pediatrician someday because I genuinely love working with kids. I joined MindLab because I like being part of projects that make learning feel less intimidating and more engaging. Helping create resources for younger students has been especially meaningful to me. I hope they feel comfortable being curious, asking questions, and realizing they are capable of understanding more than they think. Outside of MindLab, I love watching films, reading, journaling, and going on hikes.</p>
+          <div class="picks">
+            <p class="pick"><b>philosopher</b>Descartes</p>
+            <p class="pick"><b>mathematician</b>Hypatia</p>
+          </div>
+        </div>
       </div>
     </div>
 

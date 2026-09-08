@@ -146,7 +146,14 @@ main{padding:48px 56px 110px;min-width:0}
   border:1px solid rgba(123,166,212,.45);background:transparent;color:var(--ice)
 }
 .subjects button:hover,.subjects button.on{background:var(--ice);color:var(--navy);border-color:var(--ice)}
-.wl-out{font-family:var(--ui);font-size:16.5px;color:#fff;margin:0;min-height:3.2em;line-height:1.5;max-width:52ch}
+.wl-out{font-family:var(--ui);font-size:16.5px;color:#fff;margin:0;min-height:3.2em;
+  line-height:1.5;max-width:52ch;list-style:none;padding:0}
+.wl-out li{padding:5px 0 5px 18px;position:relative;border-top:1px solid rgba(123,166,212,.22)}
+.wl-out li:first-child{border-top:0}
+.wl-out li::before{content:'';position:absolute;left:0;top:1.05em;
+  width:9px;height:1px;background:var(--blue-pale)}
+.wl-out li.wl-hint{padding-left:0;border-top:0;color:var(--blue-pale)}
+.wl-out li.wl-hint::before{display:none}
 
 /* ---- the question ---- */
 
@@ -348,8 +355,9 @@ code{font-family:var(--tw);font-size:16px;background:var(--ice);padding:1px 5px}
           <button data-d="Prisoner's Dillema; Repeated Games and Reputation; Tragedy of the Commons">Game theory</button>
           <button data-d="Scarcity and Oppurtunity Cost; Supply and Demand; Incentives that Backfire; Interest and Compounding, Both Directions">Economics</button>
           <button data-d="Fast and Slow Thinking; Anchoring; Framing and Defaults; Present Bias; Social Proof, Scarcity, and Urgency; Loot Boxes and Gambling Apps; Buy-Now-Pay-Later and Infinite Scroll; Loss Aversion and Sunk Cost; How we Know Any of This, and What to do About it">Behavorial Economics</button>
-        
-        <p class="wl-out" id="wl-out">Pick one.</p>
+        </div>
+
+        <ul class="wl-out" id="wl-out"><li class="wl-hint">Pick one.</li></ul>
       </div>
     </div>
 
@@ -531,6 +539,27 @@ function route(){
   if(h==='data'){renderGroups()}
 }
 window.addEventListener('hashchange',route);
+
+/* Subject buttons -> chapter list. data-d holds the chapters separated by ';'. */
+(function(){
+  var out=document.getElementById('wl-out');
+  var btns=document.querySelectorAll('.subjects button');
+  if(!out||!btns.length) return;
+  btns.forEach(function(b){
+    b.addEventListener('click',function(){
+      btns.forEach(function(x){x.classList.remove('on')});
+      b.classList.add('on');
+      var chapters=(b.getAttribute('data-d')||'').split(';')
+        .map(function(s){return s.trim()}).filter(Boolean);
+      out.innerHTML='';
+      chapters.forEach(function(c){
+        var li=document.createElement('li');
+        li.textContent=c;            // textContent, not innerHTML — titles contain apostrophes
+        out.appendChild(li);
+      });
+    });
+  });
+})();
 
 var data={low:[30,25,45,40,35,50,28,42,38,33,55,36,44,30,48,26,40,52,34,39],
           high:[180,220,150,200,175,240,160,195,210,140,185,230,170,205,155,190,215,165,200,178]};

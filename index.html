@@ -258,6 +258,10 @@ input:focus-visible{outline:2px solid var(--ochre);outline-offset:1px}
   font-variation-settings:'SOFT' 40,'WONK' 1,'opsz' 30}
 .dl-intro{font-size:16px;color:var(--mid);max-width:52ch;margin:0 0 26px}
 
+#p-data.page.on{max-width:none}
+.gameframe{display:block;width:100%;height:calc(100vh - 128px);min-height:660px;
+  border:1px solid var(--cream-dk);background:#0a172a}
+@media(max-width:900px){.gameframe{height:calc(100vh - 96px);min-height:600px}}
 .groups{display:grid;grid-template-columns:1fr 1fr;gap:20px}
 @media(max-width:700px){.groups{grid-template-columns:1fr}}
 .grp{border:1px solid var(--cream-dk);background:var(--cream-lt);padding:14px 16px 12px}
@@ -337,7 +341,7 @@ code{font-family:var(--tw);font-size:16px;background:var(--ice);padding:1px 5px}
   <nav>
     <a href="#/sessions" data-n="sessions">Sessions</a>
     <a href="#/book" data-n="book">The Book</a>
-    <a href="#/data" data-n="data">Data lab</a>
+    <a href="#/data" data-n="data">The Trust Table</a>
     <a href="#/about" data-n="about">About Us</a>
   </nav>
   <div class="foot">
@@ -432,47 +436,8 @@ code{font-family:var(--tw);font-size:16px;background:var(--ice);padding:1px 5px}
 
 <!-- DATA -->
 <div class="page" id="p-data">
-  <p class="dl-title">Data lab</p>
-  <p class="dl-intro">Use this after the class has made its guesses. Sample numbers from the anchoring activity are loaded — press <em>edit</em> on either group to type in what your class actually said, and everything below updates.</p>
-
-  <div class="groups" id="groups"></div>
-
-  <div class="verdictbox" id="cmp"></div>
-
-  <div class="term">
-    <div class="pyhead">
-      <span class="pytitle">Python</span>
-      <span class="pystat" id="pystat">not started</span>
-      <button class="pyboot" id="pyboot" onclick="bootPy()">Start Python</button>
-    </div>
-    <p class="pyintro">Real pandas and numpy, running in this tab — nothing is uploaded and nothing is installed. Your class's guesses are already in a table called <code>df</code>. The first start downloads about 12 MB, so do it before the lesson.</p>
-
-    <div class="snips" id="snips">
-      <button data-s="0">Look at the table</button>
-      <button data-s="1">Summarise it</button>
-      <button data-s="2">Compare the two groups</button>
-      <button data-s="3">Flip 1,000 coins</button>
-      <button data-s="4">Is the gap real?</button>
-      <button data-s="5">Make a histogram</button>
-    </div>
-
-    <textarea id="pycode" spellcheck="false" aria-label="Python code">df.head()</textarea>
-    <div class="pyrow">
-      <button class="go" id="pyrun" onclick="runPy()">Run</button>
-      <span class="pyhint">Shift + Enter also runs it</span>
-    </div>
-    <div class="console" id="console"></div>
-  </div>
-
-  <div class="addbox">
-    <label for="paste">Your class's numbers</label>
-    <div class="addrow">
-      <textarea id="paste" placeholder="34, 40, 28, 55, 41, 39"></textarea>
-      <button onclick="loadPaste()">Add</button>
-    </div>
-  </div>
-
-  <p class="fn">The two groups start with 20 simulated answers each so there is something on screen before a class has run the activity. Replace them with real numbers using the edit buttons.</p>
+  <iframe class="gameframe" src="game/index.html" title="The Trust Table"
+          loading="lazy"></iframe>
 </div>
 
 <!-- ABOUT -->
@@ -562,7 +527,6 @@ function route(){
   PAGES.forEach(function(p){document.getElementById('p-'+p).classList.toggle('on',p===h)});
   document.querySelectorAll('[data-n]').forEach(function(a){a.classList.toggle('on',a.dataset.n===h)});
   window.scrollTo(0,0);
-  if(h==='data'){renderGroups()}
 }
 window.addEventListener('hashchange',route);
 
@@ -586,219 +550,6 @@ window.addEventListener('hashchange',route);
     });
   });
 })();
-
-var data={low:[30,25,45,40,35,50,28,42,38,33,55,36,44,30,48,26,40,52,34,39],
-          high:[180,220,150,200,175,240,160,195,210,140,185,230,170,205,155,190,215,165,200,178]};
-var mine=null;
-
-function mean(a){return a.reduce(function(s,x){return s+x},0)/a.length}
-function median(a){var b=a.slice().sort(function(x,y){return x-y}),m=b.length>>1;return b.length%2?b[m]:(b[m-1]+b[m])/2}
-function fmt(v){return Math.round(v*100)/100}
-
-var mineLabel='your class';
-function sets(){var o={low:data.low,high:data.high};if(mine)o[mineLabel]=mine;return o}
-var LBL={low:'Shown $40 first',high:'Shown $250 first'};
-
-function hist(arr,W,H){
-  var lo=Math.min.apply(null,arr),hi=Math.max.apply(null,arr);if(hi===lo)hi=lo+1;
-  var bins=10,c=new Array(bins).fill(0),pad=4,base=H-16;
-  arr.forEach(function(v){c[Math.min(bins-1,Math.floor((v-lo)/(hi-lo)*bins))]++});
-  var top=Math.max.apply(null,c)||1,bw=(W-pad*2)/bins;
-  var s='<line x1="'+pad+'" y1="'+base+'" x2="'+(W-pad)+'" y2="'+base+'" stroke="#C9BEA9"/>';
-  c.forEach(function(n,i){var h=n/top*(base-6);
-    s+='<rect x="'+(pad+i*bw+1)+'" y="'+(base-h)+'" width="'+(bw-2)+'" height="'+h+'" fill="#2E5F9E" opacity=".85"/>'});
-  var mx=pad+(mean(arr)-lo)/(hi-lo)*(W-pad*2);
-  s+='<line x1="'+mx+'" y1="0" x2="'+mx+'" y2="'+base+'" stroke="#0E2243" stroke-width="1.5"/>';
-  s+='<text x="'+pad+'" y="'+(H-3)+'" fill="#6B6353" font-size="11" font-family="Courier Prime, monospace">'+fmt(lo)+'</text>';
-  s+='<text x="'+(W-pad)+'" y="'+(H-3)+'" fill="#6B6353" font-size="11" font-family="Courier Prime, monospace" text-anchor="end">'+fmt(hi)+'</text>';
-  return '<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Distribution">'+s+'</svg>';
-}
-
-function renderGroups(){
-  var g=document.getElementById('groups');if(!g)return;
-  var S=sets(),html='';
-  Object.keys(S).forEach(function(k){
-    var a=S[k];
-    html+='<div class="grp"><div class="gh"><span class="gn">'+(LBL[k]||k)+'</span>'+
-      '<span class="gc">'+a.length+' guesses</span></div>'+
-      hist(a,300,118)+
-      '<div class="gs">mean <b>$'+fmt(mean(a))+'</b> &nbsp;median <b>$'+fmt(median(a))+'</b> &nbsp;range <b>'+fmt(Math.min.apply(null,a))+'\u2013'+fmt(Math.max.apply(null,a))+'</b></div></div>';
-  });
-  g.innerHTML=html;
-  g.querySelectorAll('.ed').forEach(function(b){b.onclick=function(){
-    var w=b.closest('.grp');
-    w.querySelector('.gview').hidden=true; w.querySelector('.gedit').hidden=false;
-    w.querySelector('textarea').focus();
-  }});
-  g.querySelectorAll('.cancel').forEach(function(b){b.onclick=function(){renderGroups()}});
-  g.querySelectorAll('.save').forEach(function(b){b.onclick=function(){
-    var k=b.dataset.k, w=b.closest('.grp');
-    var nums=w.querySelector('textarea').value.split(/[\s,;]+/).map(parseFloat).filter(function(x){return !isNaN(x)});
-    if(nums.length<2){alert('Needs at least two numbers.');return}
-    if(k===mineLabel) mine=nums; else data[k]=nums;
-    renderGroups(); syncPy();
-  }});
-  renderCompare();
-}
-
-function syncPy(){
-  if(typeof pyReady!=='undefined' && pyReady && pyodide){
-    pyodide.runPythonAsync(dataAsPython()).then(function(){say('df reloaded \u2014 '+(data.low.length+data.high.length+(mine?mine.length:0))+' rows.')});
-  }
-}
-function renderCompare(){
-  var c=document.getElementById('cmp');if(!c)return;
-  var a=mean(data.low),b=mean(data.high),d=b-a;
-  c.innerHTML='<p class="vlab">Difference between the two groups</p>'+
-    '<div class="vnum">$'+fmt(d)+'</div>'+
-    '<p class="vsay">The group shown <b>$250</b> guessed <b>$'+fmt(d)+' more</b> on average than the group shown <b>$40</b>. Nothing about the headphones was different.</p>'+
-    '<p class="vwarn">'+(data.low.length+data.high.length)+' answers. A gap this size still needs a fair-experiment check before you call it real.</p>';
-}
-var con=document.getElementById('console');
-function say(t,cls){var d=document.createElement('div');if(cls)d.className=cls;d.textContent=t;con.appendChild(d);con.scrollTop=con.scrollHeight}
-
-var SNIPS=[
-"df.head(10)",
-
-"df.describe()",
-
-"df.groupby('shown')['guess'].agg(['count','mean','median'])",
-
-"import numpy as np\n\nflips = np.random.randint(0, 2, 1000)\nprint('heads:', flips.sum())\nprint('tails:', 1000 - flips.sum())\nprint('share heads:', flips.mean())",
-
-"# Shuffle the labels and see how often pure chance\n# produces a gap as big as the one we measured.\nimport numpy as np\n\nreal = df.groupby('shown')['guess'].mean()\ngap  = abs(real[250] - real[40])\n\nfake = []\nfor i in range(2000):\n    shuffled = df['shown'].sample(frac=1).values\n    m = df.groupby(shuffled)['guess'].mean()\n    fake.append(abs(m.iloc[1] - m.iloc[0]))\n\nfake = np.array(fake)\nprint('our gap:', round(gap, 2))\nprint('chance beat it', (fake >= gap).sum(), 'times out of 2000')",
-
-"import matplotlib.pyplot as plt\n\nfor label, part in df.groupby('shown'):\n    plt.hist(part['guess'], bins=12, alpha=0.6, label=f'shown ${label}')\nplt.legend(); plt.xlabel('guess'); plt.ylabel('people')\nplt.show()"
-];
-document.querySelectorAll('.snips button').forEach(function(b){
-  b.onclick=function(){
-    document.getElementById('pycode').value = SNIPS[+b.dataset.s];
-    if(pyReady) runPy(); else say('Press "Start Python" first.', 'err');
-  };
-});
-
-var pyodide=null, pyReady=false, pyBooting=false;
-
-function pystat(t, ok){
-  var e=document.getElementById('pystat');
-  e.textContent=t; e.classList.toggle('ok', !!ok);
-}
-
-function dataAsPython(){
-  var rows=[];
-  data.low.forEach(function(v){rows.push('(40,'+v+')')});
-  data.high.forEach(function(v){rows.push('(250,'+v+')')});
-  if(mine) mine.forEach(function(v){rows.push('(0,'+v+')')});
-  return "import pandas as pd\ndf = pd.DataFrame([" + rows.join(',') +
-    "], columns=['shown','guess'])\n";
-}
-
-var PY_SOURCES=[
-  'https://cdn.jsdelivr.net/pyodide/v0.26.2/full/pyodide.js',
-  'https://unpkg.com/pyodide@0.26.2/pyodide.js'
-];
-
-function loadScript(src){
-  return new Promise(function(res,rej){
-    var el=document.createElement('script');
-    el.src=src; el.async=true;
-    el.onload=function(){res(src)};
-    el.onerror=function(){rej(new Error('blocked: '+src))};
-    document.head.appendChild(el);
-  });
-}
-
-async function bootPy(){
-  if(pyBooting||pyReady) return;
-  pyBooting=true;
-  document.getElementById('pyboot').disabled=true;
-
-  // 1. get the loader
-  if(typeof loadPyodide === 'undefined'){
-    pystat('fetching Python…');
-    var got=null;
-    for(var i=0;i<PY_SOURCES.length;i++){
-      try{ await loadScript(PY_SOURCES[i]); got=PY_SOURCES[i]; break; }
-      catch(e){ /* try the next mirror */ }
-    }
-    if(!got || typeof loadPyodide === 'undefined'){
-      pystat('blocked');
-      say("Couldn't fetch Python from the internet.", 'err');
-      say("This almost always means the preview window is blocking outside scripts, not that anything is broken. Save this file and open it directly, or put it on Netlify or GitHub Pages, and it will work.", 'err');
-      document.getElementById('pyboot').disabled=false;
-      pyBooting=false;
-      return;
-    }
-  }
-
-  // 2. start it
-  try{
-    pystat('starting… first time takes 20–30s');
-    pyodide = await loadPyodide();
-    pystat('loading pandas, numpy, matplotlib…');
-    await pyodide.loadPackage(['numpy','pandas','matplotlib']);
-    pyodide.setStdout({batched:function(t){say(t)}});
-    pyodide.setStderr({batched:function(t){say(t,'err')}});
-    await pyodide.runPythonAsync(dataAsPython()+"import numpy as np\n");
-    pyReady=true;
-    document.getElementById('pyboot').style.display='none';
-    pystat('ready · pandas, numpy, matplotlib', true);
-    say('df is loaded: '+(data.low.length+data.high.length+(mine?mine.length:0))+' rows, columns "shown" and "guess".');
-    say('Pick a button above, or write your own.');
-  }catch(e){
-    pystat('failed');
-    say('Python started but something went wrong: '+e, 'err');
-    document.getElementById('pyboot').disabled=false;
-  }
-  pyBooting=false;
-}
-
-async function runPy(){
-  if(!pyReady){ say('Press "Start Python" first.','err'); return; }
-  var code=document.getElementById('pycode').value;
-  say('>>> '+code,'cmd');
-  document.getElementById('pyrun').disabled=true;
-  try{
-    await pyodide.runPythonAsync("import io,base64\ntry:\n  import matplotlib\n  matplotlib.use('AGG')\nexcept Exception: pass\n");
-    var out = await pyodide.runPythonAsync(code);
-    if(out !== undefined && out !== null) say(String(out.toString ? out.toString() : out));
-    // if a matplotlib figure was drawn, show it
-    var img = await pyodide.runPythonAsync(
-      "import base64, io\n" +
-      "try:\n" +
-      "    import matplotlib.pyplot as plt\n" +
-      "    if plt.get_fignums():\n" +
-      "        b = io.BytesIO(); plt.savefig(b, format='png', dpi=110, bbox_inches='tight',\n" +
-      "            facecolor='#FFFFFF'); plt.close('all')\n" +
-      "        base64.b64encode(b.getvalue()).decode()\n" +
-      "    else:\n" +
-      "        ''\n" +
-      "except Exception:\n" +
-      "    ''\n");
-    if(img){
-      var el=document.createElement('img');
-      el.src='data:image/png;base64,'+img;
-      el.style.cssText='max-width:100%;margin:10px 0;border:1px solid #D8CDB8';
-      con.appendChild(el); con.scrollTop=con.scrollHeight;
-    }
-  }catch(e){
-    say(String(e).split('\n').slice(-6).join('\n'), 'err');
-  }
-  document.getElementById('pyrun').disabled=false;
-}
-
-document.getElementById('pycode').addEventListener('keydown',function(e){
-  if(e.key==='Enter' && (e.shiftKey||e.metaKey||e.ctrlKey)){ e.preventDefault(); runPy(); }
-});
-
-function loadPaste(){
-  var nums=document.getElementById('paste').value.split(/[\s,;]+/).map(parseFloat).filter(function(x){return !isNaN(x)});
-  if(nums.length<2){say('Need at least two numbers, separated by commas.','err');return}
-  mine=nums;renderGroups();
-  say('Added '+nums.length+' numbers as "your class".');
-  syncPy();
-}
-
 
 route();
 </script>

@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>The Trust Table · MindLab</title>
+  <meta name="description" content="Five personalities. Twelve encounters. Discover the game theory behind trust at MindLab.">
+  <link rel="stylesheet" href="styles.css">
+  <script src="engine.js" defer></script><script src="game.js" defer></script>
+</head>
+<body>
+<main class="game">
+  <header class="masthead"><a class="brand" href="./" aria-label="MindLab home">MindLab<span class="brand-symbol">Σ</span></a><span class="eyebrow">Beneath the choice / 01</span></header>
+  <section class="heading"><div><p class="eyebrow">An experiment in game theory</p><h1>The Trust Table<span>.</span></h1></div><button class="text-button" id="rules-toggle" aria-expanded="false" aria-controls="rules">How to play <span aria-hidden="true">＋</span></button></section>
+  <section class="rules" id="rules" hidden><h2>Not chess. A game of choices.</h2><p>Two students share a project. Each round, both secretly choose to <strong>cooperate</strong> (contribute) or <strong>defect</strong> (take advantage). Your piece follows the strategy you choose. Both moves are decided before either is revealed.</p><div class="payoffs"><div><span>Both cooperate</span><strong>3 / 3</strong></div><div><span>You defect, they cooperate</span><strong>5 / 0</strong></div><div><span>You cooperate, they defect</span><strong>0 / 5</strong></div><div><span>Both defect</span><strong>1 / 1</strong></div></div><p class="small">Scores are you / opponent. This simplified model is the repeated Prisoner’s Dilemma. Pieces are personalities, not chess moves. No strategy always wins.</p></section>
+  <section id="selection"><div class="section-label"><span>01 / Choose your nature</span><span>Five pieces. Five ways to play.</span></div><div id="strategies" class="strategies" role="group" aria-label="Choose your strategy"></div><div class="start-row"><p id="selection-note">Start with trust. Then return what you receive.</p><button class="primary" id="start">Take a seat <span aria-hidden="true">↗</span></button></div></section>
+  <section id="match" hidden aria-label="Game table">
+    <div class="section-label"><span id="match-label">02 / At the table</span><span id="round-label">Round 00 / 12</span></div>
+    <div class="arena">
+      <div class="player"><span class="eyebrow">Your piece</span><h2 id="your-name">Tit for Tat</h2><div class="piece large" id="your-piece" aria-hidden="true">♘</div><span class="move" id="your-move">Ready</span><div class="score"><strong id="your-score">0</strong><span>points</span></div></div>
+      <div class="table-center"><span class="eyebrow">The exchange</span><div class="exchange" id="exchange" aria-hidden="true">⇄</div><p id="round-story">A stranger takes the other seat.<br>What happens when your rules meet theirs?</p><span class="small" id="gains">12 rounds · simultaneous choices</span></div>
+      <div class="player opponent"><span class="eyebrow">Across the table</span><h2 id="opponent-name">Unknown</h2><div class="piece large" id="opponent-piece" aria-hidden="true">♟</div><span class="move" id="opponent-move">Ready</span><div class="score"><strong id="opponent-score">0</strong><span>points</span></div></div>
+    </div>
+    <div class="history" aria-label="Round history"><span class="eyebrow">The record</span><div id="history" class="rounds"></div><div class="legend"><span><i class="coop"></i> Cooperate</span><span><i class="defect"></i> Defect</span><span>Top: you · Bottom: opponent</span></div></div>
+    <div class="match-controls"><button class="text-button" id="reset">Change piece</button><div><button class="secondary" id="auto">Auto-play</button><button class="primary" id="step">Play a round <span aria-hidden="true">→</span></button></div></div>
+    <p class="sr-only" id="announcement" role="status" aria-live="polite"></p>
+  </section>
+  <section id="results" hidden tabindex="-1"><div class="section-label"><span>03 / Beneath the outcome</span><span id="result-label"></span></div><div class="result-grid"><div><p class="eyebrow" id="reveal-label"></p><h2 id="result-title"></h2><p id="lesson"></p><p class="small" id="math-note"></p></div><div class="counterfactual"><label for="alternative">What if you had chosen…</label><div class="compare-row"><select id="alternative"></select><button id="compare" class="secondary">Compare</button></div><p id="comparison">Replay the same opponent with a different rule.</p><p class="small">Same opponent and random sequence. A reactive opponent responds to your new choices.</p></div></div><button class="primary" id="again">Meet someone new <span aria-hidden="true">↗</span></button></section>
+  <footer><span>MindLab / Math × psychology × economics</span><span>Trust is a strategy. Test it.</span></footer>
+</main>
+<noscript>This game needs JavaScript enabled to run.</noscript>
+</body></html>

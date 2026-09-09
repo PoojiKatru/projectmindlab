@@ -1,18 +1,9 @@
 # Cloudflare Pages headers.
 #
-# Deliberately NO Content-Security-Policy. The page boots Pyodide (Python via
-# WebAssembly) by injecting a <script> from cdn.jsdelivr.net, falling back to
-# unpkg.com, and Pyodide then fetches its own .wasm and package files at
-# runtime. A CSP tight enough to be worth having would need, at minimum:
-#
-#   script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:
-#              https://cdn.jsdelivr.net https://unpkg.com;
-#   connect-src 'self' https://cdn.jsdelivr.net https://unpkg.com;
-#   worker-src blob:;
-#
-# That is easy to get subtly wrong, and when it is wrong the failure is silent:
-# the page still renders and only the interactive demo dies. Add it once someone
-# can load the page and actually run the Python panel to confirm it survives.
+# Deliberately NO Content-Security-Policy yet. Worth adding now that the Pyodide
+# data lab is gone — the site's only scripts are same-origin plus Google Fonts —
+# but it should be added and then actually loaded in a browser to confirm the
+# Trust Table iframe and its scripts still run.
 
 /*
   X-Content-Type-Options: nosniff
@@ -20,3 +11,9 @@
   X-Frame-Options: DENY
   Permissions-Policy: geolocation=(), microphone=(), camera=(), interest-cohort=()
   Strict-Transport-Security: max-age=63072000; includeSubDomains
+
+# The Trust Table is embedded in an iframe on /#/data. X-Frame-Options: DENY
+# above blocks framing even from the same origin, so this page needs SAMEORIGIN
+# or the frame renders blank.
+/game/*
+  X-Frame-Options: SAMEORIGIN

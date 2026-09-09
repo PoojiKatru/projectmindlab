@@ -8,12 +8,9 @@
 /*
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
-  X-Frame-Options: DENY
+  # SAMEORIGIN, not DENY: /#/data frames game/ from this same origin.
+  # Cross-origin framing is still blocked, which is the clickjacking risk.
+  X-Frame-Options: SAMEORIGIN
   Permissions-Policy: geolocation=(), microphone=(), camera=(), interest-cohort=()
   Strict-Transport-Security: max-age=63072000; includeSubDomains
 
-# The Trust Table is embedded in an iframe on /#/data. X-Frame-Options: DENY
-# above blocks framing even from the same origin, so this page needs SAMEORIGIN
-# or the frame renders blank.
-/game/*
-  X-Frame-Options: SAMEORIGIN

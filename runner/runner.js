@@ -14,13 +14,18 @@
     id: 'wallst',
     name: 'Wall Street',
     label: '01 / Wall Street',
-    sky: ['#0b1729', '#1d3352', '#3c4f6b'],   // night -> horizon haze
-    band: ['#101f36', '#17293f', '#1e3450'],  // far / mid / near silhouettes
-    lit: ['#f2d08a', '#ffe6a8', '#aec8ed'],   // window colours
-    road: '#0b1524', kerb: '#1c2b41', walk: '#16233a',
-    signs: ['WALL ST', 'BROAD ST', 'NYSE', 'EXCHANGE PL'],
-    from: 0            // metres at which this level starts
-  }];
+    // Deep indigo night, warming toward the horizon.
+    sky: ['#171a4a', '#1e2358', '#282e6b', '#343b7d'],
+    towerFar: '#252a5e', towerMid: '#2b3068',      // blue-violet skyscrapers
+    stone: ['#6d5a46', '#7d6a52', '#5d4c3c'],      // tan street-level blocks
+    trim: '#8a7660',
+    gold: '#f6c95f', goldHot: '#ffe6a0', coldWin: '#8fc0f0',
+    road: '#141634', kerb: '#3a3a5e', walk: '#232544',
+    tree: ['#1c4a33', '#276b46'],
+    signs: ['WALL ST', 'BROAD ST', 'NASSAU ST', 'EXCHANGE PL'],
+    tickers: ['AAPL', 'TSLA', 'NVDA', 'SPX', 'DJI', 'MSFT'],
+    from: 0
+  }];;
 
   // ---------- state ----------
   const P = { x: 110, y: GROUND, vy: 0, w: 40, h: 46, duck: false, onGround: true };
@@ -33,44 +38,52 @@
   const duckH = 26;
 
   // ---------- world building ----------
-  const PX = 4;                              // pixel block size
+  const PX = 4;
   const snap = (n) => Math.round(n / PX) * PX;
   function blk(x, y, w, h, c) { ctx.fillStyle = c; ctx.fillRect(snap(x), snap(y), snap(w), snap(h)); }
 
-  let stars = [], moon = { x: W - 150, y: 52 };
+  let stars = [], clouds = [], trees = [], props = [], moon = { x: W - 170, y: 54 };
 
-  // A building is generated once, windows included, so the lit pattern scrolls
-  // with the building instead of shimmering as it moves.
+  // Windows are baked in once so the lit pattern travels with its building.
   function makeBuilding(layer, x, w, h) {
-    const cols = Math.max(1, Math.floor((w - 12) / 12));
-    const rows = Math.max(1, Math.floor((h - 22) / 14));
+    const street = layer === 2;
+    const cols = Math.max(2, Math.floor((w - 10) / (street ? 16 : 13)));
+    const rows = Math.max(2, Math.floor((h - (street ? 26 : 20)) / (street ? 20 : 15)));
     const win = [];
-    const density = layer === 0 ? 0.22 : layer === 1 ? 0.38 : 0.5;
+    // The reference is densely lit — most windows are on.
+    const on = street ? 0.74 : layer === 1 ? 0.6 : 0.42;
     for (let i = 0; i < cols * rows; i++)
-      win.push(Math.random() < density ? (Math.random() < 0.22 ? 2 : Math.random() < 0.5 ? 1 : 0) : -1);
+      win.push(Math.random() < on ? (Math.random() < 0.12 ? 2 : 1) : 0);
     const r = Math.random();
-    const roof = layer === 0 ? 'flat'
-      : r < 0.22 ? 'deco' : r < 0.4 ? 'spire' : r < 0.58 ? 'tank' : r < 0.72 ? 'mast' : 'flat';
-    return { layer, x, w, h, cols, rows, win, roof, ticker: layer === 2 && Math.random() < 0.3 };
+    const roof = street ? (r < 0.4 ? 'cornice' : 'flat')
+      : r < 0.2 ? 'deco' : r < 0.36 ? 'spire' : r < 0.5 ? 'tank' : r < 0.6 ? 'mast' : 'flat';
+    return { layer, x, w, h, cols, rows, win, roof, street,
+             tone: street ? Math.floor(Math.random() * 3) : 0,
+             shops: street ? Array.from({length: 12}, () => Math.random() < 0.12) : null,
+             crown: !street && Math.random() < 0.18 };   // blue-lit crown, as in the reference
   }
 
   function buildSkyline() {
     skyline = [];
-    // layer, spacing, min height, max height
-    for (const [layer, gap, minH, maxH] of [[0, 60, 60, 130], [1, 54, 110, 200], [2, 70, 140, 245]]) {
-      let x = -80;
-      while (x < W + 300) {
-        const w = 44 + Math.random() * gap;
+    for (const [layer, gap, minH, maxH] of [[0, 52, 74, 150], [1, 60, 120, 215], [2, 58, 86, 132]]) {
+      let x = -90;
+      while (x < W + 320) {
+        const w = (layer === 2 ? 66 : 40) + Math.random() * gap;
         skyline.push(makeBuilding(layer, x, w, minH + Math.random() * (maxH - minH)));
-        x += w + (layer === 2 ? 26 + Math.random() * 60 : 6 + Math.random() * 14);
+        x += w + (layer === 2 ? 4 + Math.random() * 26 : 5 + Math.random() * 12);
       }
     }
     stars = [];
-    for (let i = 0; i < 70; i++)
-      stars.push({ x: Math.random() * W, y: Math.random() * 150, t: Math.random() * 6 });
+    for (let i = 0; i < 80; i++) stars.push({ x: Math.random() * W, y: Math.random() * 140, t: Math.random() * 6 });
+    clouds = [];
+    for (let i = 0; i < 5; i++) clouds.push({ x: Math.random() * W, y: 20 + Math.random() * 70, w: 40 + Math.random() * 50 });
+    trees = [];
+    for (let x = 20; x < W + 260; x += 74 + Math.random() * 60)
+      trees.push({ x, h: 30 + Math.random() * 14 });
     lamps = [];
-    for (let x = 40; x < W + 240; x += 240)
-      lamps.push({ x, sign: Math.floor(Math.random() * level().signs.length) });
+    for (let x = 60; x < W + 260; x += 250) lamps.push({ x, sign: Math.floor(Math.random() * level().signs.length) });
+    // one ticker board and one bull somewhere down the street
+    props = [{ kind: 'ticker', x: 420 }, { kind: 'bull', x: 1180 }];
   }
 
   function reset() {
@@ -131,9 +144,12 @@
       if (overlap(me, box(o))) return end();
     }
 
-    const PAR = [0.06, 0.16, 0.34];
-    for (const b of skyline) { b.x -= speed * dt * PAR[b.layer]; if (b.x + b.w < -120) b.x += W + 380; }
-    for (const l of lamps) { l.x -= speed * dt * 0.62; if (l.x < -180) l.x += W + 300; }
+    // Depth: distant towers barely drift, the pavement rushes past.
+    const PAR = [0.05, 0.13, 0.30];
+    for (const b of skyline) { b.x -= speed * dt * PAR[b.layer]; if (b.x + b.w < -140) b.x += W + 420; }
+    for (const l of lamps) { l.x -= speed * dt * 0.72; if (l.x < -200) l.x += W + 320; }
+    for (const t0 of trees) { t0.x -= speed * dt * 0.78; if (t0.x < -40) t0.x += W + 300; }
+    for (const s of props) { s.x -= speed * dt * 0.34; if (s.x < -280) s.x += W + 900; }
 
     $('score').textContent = Math.floor(dist);
   }
@@ -147,28 +163,106 @@
   }
 
   // ---------- drawing ----------
-  // Roof shapes. Art-deco setbacks, spires, water tanks and radio masts are what
-  // make a New York skyline read as one rather than a row of boxes.
   function roofOf(b, top, c, L) {
     const cx = b.x + b.w / 2;
     if (b.roof === 'deco') {
       blk(b.x + b.w * 0.16, top - 12, b.w * 0.68, 12, c);
-      blk(b.x + b.w * 0.32, top - 22, b.w * 0.36, 10, c);
-      blk(cx - 2, top - 34, 4, 12, c);
+      blk(b.x + b.w * 0.34, top - 22, b.w * 0.32, 10, c);
+      blk(cx - 2, top - 32, 4, 10, c);
     } else if (b.roof === 'spire') {
-      blk(cx - 6, top - 14, 12, 14, c);
-      blk(cx - 2, top - 34, 4, 20, c);
-      if (b.layer === 2) blk(cx - 2, top - 38, 4, 4, '#d9a28d');   // aircraft light
+      blk(cx - 7, top - 13, 14, 13, c);
+      blk(cx - 2, top - 33, 4, 20, c);
+      if (Math.sin(tick / 20) > 0.3) blk(cx - 2, top - 37, 4, 4, '#e8705f');
     } else if (b.roof === 'tank') {
-      const tx = b.x + b.w * 0.6;
-      blk(tx, top - 16, 18, 12, c);
-      blk(tx + 2, top - 22, 14, 6, c);
-      blk(tx + 3, top - 4, 3, 6, c); blk(tx + 12, top - 4, 3, 6, c);
+      const tx = b.x + b.w * 0.58;
+      blk(tx, top - 15, 18, 11, c); blk(tx + 2, top - 21, 14, 6, c);
+      blk(tx + 3, top - 4, 3, 5, c); blk(tx + 12, top - 4, 3, 5, c);
     } else if (b.roof === 'mast') {
-      blk(cx - 1, top - 26, 2, 26, c);
-      blk(cx - 5, top - 18, 10, 2, c);
-      blk(cx - 3, top - 24, 6, 2, c);
-      if (b.layer === 2 && Math.sin(tick / 22) > 0.4) blk(cx - 2, top - 30, 4, 4, '#d9a28d');
+      blk(cx - 1, top - 24, 2, 24, c);
+      blk(cx - 5, top - 17, 10, 2, c); blk(cx - 3, top - 22, 6, 2, c);
+    } else if (b.roof === 'cornice') {
+      blk(b.x - 3, top, b.w + 6, 6, L.trim);
+      blk(b.x - 1, top - 4, b.w + 2, 4, L.trim);
+    }
+  }
+
+  function drawCloud(c) {
+    const y = c.y;
+    ctx.fillStyle = 'rgba(120,130,200,.20)';
+    ctx.fillRect(snap(c.x), snap(y), snap(c.w), PX * 2);
+    ctx.fillRect(snap(c.x + c.w * .2), snap(y - PX), snap(c.w * .55), PX * 2);
+    ctx.fillRect(snap(c.x + c.w * .35), snap(y - PX * 2), snap(c.w * .3), PX * 2);
+  }
+
+  function drawTree(t0, L) {
+    const x = t0.x, base = GROUND - 10, h = t0.h;
+    blk(x - 2, base - h * 0.42, 5, h * 0.42, '#3a2b20');            // trunk
+    blk(x - 13, base - h, 26, h * 0.6, L.tree[0]);                  // canopy
+    blk(x - 9, base - h - 6, 18, 8, L.tree[0]);
+    blk(x - 10, base - h + 2, 12, h * 0.3, L.tree[1]);              // highlight
+  }
+
+  function drawBuilding(b, L) {
+    const top = GROUND - b.h;
+    if (b.x > W + 40 || b.x + b.w < -40) return;
+    const body = b.street ? L.stone[b.tone] : (b.layer ? L.towerMid : L.towerFar);
+    blk(b.x, top, b.w, b.h, body);
+    roofOf(b, top, body, L);
+
+    // a blue-lit crown on a few towers, like the glass skyscrapers in the reference
+    if (b.crown) blk(b.x + 3, top + 4, b.w - 6, 14, 'rgba(120,180,240,.30)');
+
+    const padY = b.street ? 20 : 14;
+    const cw = (b.w - 10) / b.cols, ch = (b.h - padY - (b.street ? 26 : 6)) / b.rows;
+    for (let r = 0; r < b.rows; r++) for (let c = 0; c < b.cols; c++) {
+      const v = b.win[r * b.cols + c];
+      const wx = b.x + 5 + c * cw, wy = top + padY + r * ch;
+      if (wx < -8 || wx > W + 8) continue;
+      if (v === 0) { blk(wx, wy, cw * 0.55, ch * 0.5, 'rgba(12,14,40,.55)'); continue; }
+      const col = v === 2 ? L.coldWin : (b.layer === 0 ? L.gold : L.goldHot);
+      ctx.globalAlpha = b.layer === 0 ? 0.55 : b.layer === 1 ? 0.8 : 1;
+      blk(wx, wy, cw * 0.55, ch * 0.5, col);
+      ctx.globalAlpha = 1;
+    }
+
+    // lit shopfronts along the pavement
+    if (b.street) {
+      const gy = GROUND - 32;
+      blk(b.x + 3, gy, b.w - 6, 22, '#2a2036');
+      let si = 0;
+      for (let x = b.x + 7; x < b.x + b.w - 10; x += 16, si++) {
+        // shuttered or lit is decided once per shop, not re-rolled every frame
+        blk(x, gy + 3, 11, 15, b.shops[si % b.shops.length] ? '#2a2036' : L.goldHot);
+        ctx.fillStyle = 'rgba(246,201,95,.10)';
+        ctx.fillRect(snap(x - 4), snap(gy + 18), snap(19), snap(14));   // spill onto pavement
+      }
+      blk(b.x + 3, gy - 4, b.w - 6, 4, L.trim);
+    }
+  }
+
+  function drawProp(s, L) {
+    if (s.x > W + 200 || s.x < -260) return;
+    if (s.kind === 'ticker') {
+      const w = 210, h = 78, y = GROUND - 150;
+      blk(s.x - 6, y - 6, w + 12, h + 12, '#241f33');
+      blk(s.x, y, w, h, '#06110b');
+      ctx.font = '700 15px "Courier New",monospace'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+      for (let i = 0; i < 3; i++) {
+        const sym = L.tickers[(i + Math.floor(tick / 220)) % L.tickers.length];
+        const up = ((i + Math.floor(tick / 220)) % 3) !== 1;
+        ctx.fillStyle = up ? '#57e08a' : '#e8705f';
+        ctx.fillText(`${sym} ${up ? '\u25B2' : '\u25BC'} ${(90 + i * 137 + (Math.floor(tick / 30) % 9)).toFixed(2)}`,
+                     snap(s.x + 14), snap(y + 12 + i * 22));
+      }
+    } else if (s.kind === 'bull') {
+      const x = s.x, y = GROUND - 10;
+      blk(x, y - 26, 54, 20, '#8a6a3a');            // body
+      blk(x + 46, y - 34, 18, 14, '#8a6a3a');       // head
+      blk(x + 60, y - 38, 6, 5, '#a8834a');         // horn
+      blk(x + 44, y - 38, 6, 5, '#a8834a');
+      blk(x + 4, y - 8, 7, 9, '#6f5430'); blk(x + 18, y - 8, 7, 9, '#6f5430');
+      blk(x + 34, y - 8, 7, 9, '#6f5430'); blk(x + 46, y - 8, 7, 9, '#6f5430');
+      blk(x - 6, y - 30, 8, 16, '#6f5430');         // tail
     }
   }
 
@@ -176,81 +270,48 @@
     const L = level();
     ctx.imageSmoothingEnabled = false;
 
-    // --- sky: banded, not a smooth gradient. Bands read as pixel art. ---
     const bands = L.sky.length;
-    for (let i = 0; i < bands; i++)
-      blk(0, (GROUND / bands) * i, W, GROUND / bands + PX, L.sky[i]);
+    for (let i = 0; i < bands; i++) blk(0, (GROUND / bands) * i, W, GROUND / bands + PX, L.sky[i]);
 
-    // --- stars, fading out toward the horizon glow ---
     for (const s of stars) {
-      const tw = 0.35 + 0.65 * Math.abs(Math.sin(tick / 40 + s.t));
-      ctx.fillStyle = `rgba(226,236,250,${(tw * (1 - s.y / 190)).toFixed(3)})`;
+      const tw = 0.4 + 0.6 * Math.abs(Math.sin(tick / 40 + s.t));
+      ctx.fillStyle = `rgba(232,238,255,${(tw * (1 - s.y / 200)).toFixed(3)})`;
       ctx.fillRect(snap(s.x), snap(s.y), PX, PX);
     }
+    for (const c of clouds) drawCloud(c);
 
-    // --- moon, built from blocks with a bite taken out ---
-    blk(moon.x - 16, moon.y - 16, 32, 32, '#e8eef7');
-    blk(moon.x - 20, moon.y - 12, 8, 24, L.sky[0]);
-    blk(moon.x - 4, moon.y - 8, 8, 8, '#d3dced');
-    blk(moon.x + 4, moon.y + 4, 4, 4, '#d3dced');
+    ctx.fillStyle = 'rgba(255,255,255,.07)';
+    ctx.beginPath(); ctx.arc(moon.x, moon.y, 34, 0, Math.PI * 2); ctx.fill();
+    blk(moon.x - 18, moon.y - 18, 36, 36, '#f4f6ff');
+    blk(moon.x - 22, moon.y - 14, 8, 28, L.sky[0]);
+    blk(moon.x - 6, moon.y - 10, 8, 8, '#dfe4f5');
+    blk(moon.x + 2, moon.y + 4, 5, 5, '#dfe4f5');
 
-    // --- buildings, far to near ---
-    for (const layer of [0, 1, 2]) {
-      for (const b of skyline) {
-        if (b.layer !== layer) continue;
-        const top = GROUND - b.h, c = L.band[layer];
-        blk(b.x, top, b.w, b.h, c);
-        roofOf(b, top, c, L);
-        if (layer === 0) continue;
+    for (const layer of [0, 1, 2]) for (const b of skyline) if (b.layer === layer) drawBuilding(b, L);
+    for (const s of props) drawProp(s, L);
 
-        // windows
-        const cw = (b.w - 12) / b.cols, ch = (b.h - 22) / b.rows;
-        for (let r = 0; r < b.rows; r++) for (let cI = 0; cI < b.cols; cI++) {
-          const v = b.win[r * b.cols + cI];
-          if (v < 0) continue;
-          const wx = b.x + 6 + cI * cw, wy = top + 14 + r * ch;
-          if (wx < -PX || wx > W) continue;
-          ctx.fillStyle = v === 0 ? 'rgba(10,20,36,.75)'
-            : `rgba(${v === 2 ? '174,200,237' : '242,208,138'},${layer === 1 ? .5 : .82})`;
-          ctx.fillRect(snap(wx), snap(wy), PX * 2, PX * 2);
-        }
-
-        // a lit marquee band on some near buildings
-        if (b.ticker && b.w > 70) {
-          blk(b.x + 4, top + b.h - 46, b.w - 8, 12, '#0d1c31');
-          const off = (tick * 1.3) % 24;
-          for (let x = b.x + 6 - off; x < b.x + b.w - 8; x += 12)
-            if (x > b.x + 4) blk(x, top + b.h - 43, 6, 6, Math.random() < .5 ? '#8fbf9f' : '#d9a28d');
-        }
-      }
-    }
-
-    // --- pavement and road ---
     blk(0, GROUND - 10, W, 10, L.walk);
-    blk(0, GROUND - 10, W, PX, L.kerb);
-    blk(0, GROUND, W, H - GROUND, L.road);
-    for (let x = -((dist * 12) % 72); x < W; x += 72) blk(x, GROUND + 18, 34, PX, '#22344c');
-    // kerb ticks, moving with the road so speed reads at ground level
-    for (let x = -((dist * 12) % 36); x < W; x += 36) blk(x, GROUND - 4, 12, PX, '#243b55');
+    blk(0, GROUND - 12, W, PX, L.kerb);
+    for (const t0 of trees) drawTree(t0, L);
 
-    // --- lampposts and street signs ---
     for (const l of lamps) {
-      blk(l.x, GROUND - 104, PX, 104, '#22364f');
-      blk(l.x - 20, GROUND - 108, 48, PX, '#22364f');
-      blk(l.x - 24, GROUND - 112, 12, 8, '#f2d08a');           // lamp head
-      ctx.fillStyle = 'rgba(242,208,138,.10)';
-      ctx.beginPath(); ctx.moveTo(l.x - 18, GROUND - 104);
-      ctx.lineTo(l.x + 26, GROUND - 104); ctx.lineTo(l.x + 46, GROUND); ctx.lineTo(l.x - 38, GROUND);
-      ctx.closePath(); ctx.fill();
-      // sign plate
+      if (l.x < -60 || l.x > W + 60) continue;
+      blk(l.x, GROUND - 106, PX, 96, '#2f3050');
+      blk(l.x - 3, GROUND - 12, 10, 4, '#2f3050');
+      blk(l.x - 5, GROUND - 118, 14, 12, L.goldHot);
+      ctx.fillStyle = 'rgba(246,201,95,.13)';
+      ctx.beginPath(); ctx.moveTo(l.x - 14, GROUND - 106); ctx.lineTo(l.x + 18, GROUND - 106);
+      ctx.lineTo(l.x + 42, GROUND); ctx.lineTo(l.x - 38, GROUND); ctx.closePath(); ctx.fill();
       const label = L.signs[l.sign];
-      ctx.font = '700 9px Arial'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+      ctx.font = '700 10px Arial'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
       const tw = ctx.measureText(label).width;
-      blk(l.x + 4, GROUND - 96, tw + 12, 16, '#16324e');
-      blk(l.x + 4, GROUND - 96, tw + 12, PX, '#2c4a6b');
-      ctx.fillStyle = '#aec8ed';
-      ctx.fillText(label, snap(l.x + 10), snap(GROUND - 92));
+      blk(l.x + 6, GROUND - 100, tw + 14, 17, '#12142e');
+      blk(l.x + 6, GROUND - 100, tw + 14, PX, '#4a4d80');
+      ctx.fillStyle = '#eef1ff'; ctx.fillText(label, snap(l.x + 13), snap(GROUND - 95));
     }
+
+    blk(0, GROUND, W, H - GROUND, L.road);
+    for (let x = -((dist * 12) % 74); x < W; x += 74) blk(x, GROUND + 19, 36, PX, '#2e3160');
 
     for (const o of obstacles) drawCash(o);
     drawSigma();

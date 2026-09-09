@@ -147,8 +147,8 @@
   function makeBuilding(layer, x, w, h, city) {
     const street = layer === 2;
     const CL = LEVELS[city];
-    const cols = Math.max(2, Math.floor((w - 10) / (street ? 16 : 13)));
-    const rows = Math.max(2, Math.floor((h - (street ? 26 : 20)) / (street ? 20 : 15)));
+    const cols = Math.max(2, Math.floor((w - 8) / (street ? 12 : 10)));
+    const rows = Math.max(3, Math.floor((h - (street ? 24 : 16)) / (street ? 14 : 11)));
     // Lights are on at night. By day most glass just reflects the sky.
     const on = CL.night ? (street ? 0.74 : layer === 1 ? 0.6 : 0.42)
                         : (street ? 0.30 : 0.10);
@@ -162,7 +162,7 @@
     const top = snap(GROUND - h), wS = Math.max(PX, snap(w)), hS = GROUND - top;
     const padY = street ? 20 : 14;
     const cw = (w - 10) / cols, ch = (h - padY - (street ? 26 : 6)) / rows;
-    const ww = Math.max(PX, snap(cw * 0.55)), wh = Math.max(PX, snap(ch * 0.5));
+    const ww = Math.max(PX, snap(cw * 0.62)), wh = Math.max(PX, snap(ch * 0.62));
     const cells = [];
     for (let ri = 0; ri < rows; ri++) for (let ci = 0; ci < cols; ci++)
       cells.push({ dx: snap(5 + ci * cw), dy: snap(padY + ri * ch),
@@ -366,45 +366,74 @@
 
   function drawBuilding(b, L) {
     if (b.x > W + 40 || b.x + b.w < -40) return;
-    const bx = snap(b.x), top = b.top;                     // <- the only snap
-    const CL = LEVELS[b.city] || L;        // a building keeps its own city's colours
+    const bx = snap(b.x), top = b.top;
+    const CL = LEVELS[b.city] || L;
     const body = b.street ? CL.stone[b.tone] : (b.layer ? CL.towerMid : CL.towerFar);
     raw(bx, top, b.wS, b.hS, body);
-    roofOf(b, top, body, CL, bx);
 
+    // Depth: a lit left face and a shaded right one, plus a hard edge between
+    // neighbours. Without this a packed street is one flat wall of colour.
+    raw(bx, top, PX, b.hS, 'rgba(255,255,255,.10)');
+    raw(bx + b.wS - PX, top, PX, b.hS, 'rgba(0,0,0,.28)');
+    raw(bx + b.wS, top, PX, b.hS, 'rgba(0,0,0,.34)');
+
+    roofOf(b, top, body, CL, bx);
     if (b.crown) raw(bx + PX, top + PX, b.wS - PX * 2, 12, 'rgba(120,180,240,.30)');
 
-    const alpha = b.layer === 0 ? 0.55 : b.layer === 1 ? 0.8 : 1;
+    const alpha = b.layer === 0 ? 0.55 : b.layer === 1 ? 0.85 : 1;
+    const glow = b.layer === 0 ? 0 : b.layer === 1 ? 0.10 : 0.16;
+    let lastRow = -1;
     for (const cell of b.cells) {
-      const wx = bx + cell.dx;
+      const wx = bx + cell.dx, wy = top + cell.dy;
       if (wx < -PX * 2 || wx > W + PX * 2) continue;
-      if (cell.v === 0) { raw(wx, top + cell.dy, b.ww, b.wh,
-        L.night ? 'rgba(12,14,40,.55)' : 'rgba(255,255,255,.13)'); continue; }
+
+      // a ledge under each floor, drawn once per row
+      if (b.street && cell.dy !== lastRow) {
+        lastRow = cell.dy;
+        raw(bx + PX, wy + b.wh + PX, b.wS - PX * 2, PX, 'rgba(0,0,0,.22)');
+      }
+      if (cell.v === 0) {
+        raw(wx, wy, b.ww, b.wh, L.night ? 'rgba(10,12,34,.62)' : 'rgba(255,255,255,.14)');
+        continue;
+      }
+      const col = cell.v === 2 ? CL.coldWin : (b.layer === 0 ? CL.gold : CL.goldHot);
+      // bloom first, then the pane — this is what makes a lit city look lit
+      if (glow) {
+        // Two-stage bloom only on the street row, where it is actually seen.
+        if (b.street) {
+          ctx.globalAlpha = glow;
+          raw(wx - PX * 2, wy - PX * 2, b.ww + PX * 4, b.wh + PX * 4, col);
+        }
+        ctx.globalAlpha = glow * 1.7;
+        raw(wx - PX, wy - PX, b.ww + PX * 2, b.wh + PX * 2, col);
+      }
       ctx.globalAlpha = alpha;
-      raw(wx, top + cell.dy, b.ww, b.wh,
-          cell.v === 2 ? CL.coldWin : (b.layer === 0 ? CL.gold : CL.goldHot));
+      raw(wx, wy, b.ww, b.wh, col);
       ctx.globalAlpha = 1;
-      // A frame and a centre bar turn a lit rectangle into a window.
-      if (b.street && b.ww >= PX * 3) {
-        raw(wx, top + cell.dy, b.ww, PX, 'rgba(0,0,0,.34)');
-        raw(wx + (b.ww >> 1) - (PX >> 1), top + cell.dy, PX, b.wh, 'rgba(0,0,0,.28)');
+      if (b.ww >= PX * 3) {                       // frame + centre bar
+        raw(wx, wy, b.ww, PX, 'rgba(0,0,0,.40)');
+        raw(wx + (b.ww >> 1) - (PX >> 1), wy, PX, b.wh, 'rgba(0,0,0,.32)');
       }
     }
 
     if (b.street) {
       const gy = snap(GROUND - 32);
-      raw(bx + PX, gy, b.wS - PX * 2, 24, '#2a2036');
+      raw(bx + PX, gy, b.wS - PX * 2, 24, '#241a2e');
       for (const s of b.shops) {
-        raw(bx + s.dx, gy + PX, 12, 16, s.dark ? '#2a2036' : CL.goldHot);
-        if (!s.dark) raw(bx + s.dx - PX, gy + 20, 20, 12, 'rgba(246,201,95,.10)');
+        if (s.dark) { raw(bx + s.dx, gy + PX, 12, 16, '#241a2e'); continue; }
+        ctx.globalAlpha = 0.22;                    // shopfront bloom
+        raw(bx + s.dx - PX * 2, gy - PX, 12 + PX * 4, 22, CL.goldHot);
+        ctx.globalAlpha = 1;
+        raw(bx + s.dx, gy + PX, 12, 16, CL.goldHot);
+        raw(bx + s.dx + 4, gy + PX, PX, 16, 'rgba(0,0,0,.30)');
       }
       raw(bx + PX, gy - PX, b.wS - PX * 2, PX, CL.trim);
-      if (b.awning) {                       // striped awning over the shopfront
+      if (b.awning) {
         raw(bx + PX, gy - PX * 2, b.wS - PX * 2, PX * 2, b.awning);
         for (let sx = bx + PX; sx < bx + b.wS - PX; sx += PX * 4)
           raw(sx, gy - PX * 2, PX * 2, PX * 2, 'rgba(255,255,255,.30)');
       }
-      if (b.flag) {                         // pole and banner off the facade
+      if (b.flag) {
         const fy = top + 18;
         raw(bx + b.wS - PX, fy, PX * 5, PX, '#4a4034');
         raw(bx + b.wS + PX * 3, fy, PX, 14, '#4a4034');
@@ -415,7 +444,7 @@
 
   const TICKERS = ['AAPL', 'TSLA', 'NVDA', 'SPX', 'DJI', 'MSFT'];
 
-  // One landmark per city, drawn as a silhouette on the far side of the street.
+  // One landmark per city, drawn on the far side of the street.
   function drawMark(x, L) {
     const g = GROUND - 10, c = L.towerMid, lit = L.goldHot;
     switch (L.mark) {
@@ -540,6 +569,7 @@
       ctx.fillStyle = L.fog ? 'rgba(232,236,244,.20)' : 'rgba(240,214,160,.18)';
       ctx.fillRect(0, snap(GROUND - 130), W, 130);
     }
+    if (L.night) { ctx.fillStyle = 'rgba(246,201,95,.07)'; ctx.fillRect(0, snap(GROUND - 54), W, 54); }
     blk(0, GROUND - 10, W, 10, L.walk);
     blk(0, GROUND - 12, W, PX, L.kerb);
     for (const t0 of trees) drawTree(t0, L);

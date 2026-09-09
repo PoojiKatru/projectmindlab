@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Apex — a racer</title>
+  <meta name="robots" content="noindex">
+  <link rel="stylesheet" href="styles.css">
+  <script src="racer.js" defer></script>
+</head>
+<body>
+<main class="wrap">
+  <div class="stage">
+    <canvas id="c" width="1024" height="576" aria-label="Race view" role="img"></canvas>
+
+    <!-- HUD -->
+    <div class="hud" id="hud" hidden>
+      <div class="hud-tl">
+        <div class="tile"><span>LAP</span><strong id="lap">1<i>/3</i></strong></div>
+        <div class="tile"><span>POS</span><strong id="pos">1<i>/6</i></strong></div>
+      </div>
+      <div class="hud-tr">
+        <div class="tile time"><span>CURRENT</span><strong id="cur">0:00.00</strong></div>
+        <div class="tile time"><span>BEST</span><strong id="best">—:—.—</strong></div>
+        <div class="split" id="split"></div>
+      </div>
+      <div class="hud-br">
+        <div class="dial">
+          <canvas id="tacho" width="220" height="220"></canvas>
+          <div class="readout"><strong id="kph">0</strong><span>KM/H</span><em id="gear">1</em></div>
+        </div>
+      </div>
+      <div class="pedals" aria-hidden="true">
+        <button class="pedal" id="p-brake">BRAKE</button>
+        <button class="pedal" id="p-gas">GAS</button>
+      </div>
+      <div class="wheelpad" aria-hidden="true">
+        <button class="pedal" id="p-left">◀</button>
+        <button class="pedal" id="p-right">▶</button>
+      </div>
+    </div>
+
+    <!-- start / results -->
+    <div class="panel" id="panel">
+      <div>
+        <p class="eyebrow" id="p-eyebrow">Circuit 01</p>
+        <h1 id="p-title">Apex<span>.</span></h1>
+        <p id="p-text">Three laps. Five rivals. Hold the racing line and don't lift too late.</p>
+        <div class="keys" id="p-keys">
+          <div><b>↑ / W</b><span>throttle</span></div>
+          <div><b>↓ / S</b><span>brake</span></div>
+          <div><b>← →</b><span>steer</span></div>
+          <div><b>R</b><span>restart</span></div>
+        </div>
+        <button class="go" id="go">Start race <span aria-hidden="true">→</span></button>
+      </div>
+    </div>
+
+    <div class="lights" id="lights" hidden aria-hidden="true">
+      <i></i><i></i><i></i><i></i><i></i>
+    </div>
+    <p class="sr-only" id="say" role="status" aria-live="polite"></p>
+  </div>
+
+  <p class="foot">Apex · a pseudo-3D racer · <span id="fps">–</span> fps</p>
+</main>
+<noscript>This needs JavaScript.</noscript>
+</body></html>

@@ -1,4 +1,4 @@
-/* Sigma Run — an endless runner. You are Σ. Jump the cash on the ground,
+/* The runner — an endless runner. You are Σ. Jump the cash on the ground,
    duck the cash in the air.
 
    Levels are data, not code, so adding level two is a new entry in LEVELS
@@ -25,7 +25,7 @@
   let obstacles = [], skyline = [], lamps = [], speed = 6, dist = 0, spawnIn = 90,
       running = false, over = false, paused = false, raf = null, last = 0, tick = 0;
   let best = 0;
-  try { best = parseInt(localStorage.getItem('sigmarun.best') || '0', 10) || 0; } catch (e) { best = 0; }
+  try { best = parseInt(localStorage.getItem('mindlab.runner.best') || '0', 10) || 0; } catch (e) { best = 0; }
 
   const level = () => LEVELS[0];
   const duckH = 26;
@@ -214,7 +214,7 @@
     running = false; over = true;
     if (raf) cancelAnimationFrame(raf);
     const m = Math.floor(dist), isBest = m > best;
-    if (isBest) { best = m; try { localStorage.setItem('sigmarun.best', String(best)); } catch (e) {} }
+    if (isBest) { best = m; try { localStorage.setItem('mindlab.runner.best', String(best)); } catch (e) {} }
     showBest();
     $('over-eyebrow').textContent = isBest ? 'New best' : 'Caught by the cash';
     $('over-title').textContent = `${m} m.`;

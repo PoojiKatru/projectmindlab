@@ -10,22 +10,89 @@
   const cv = $('c'), ctx = cv.getContext('2d');
   const W = cv.width, H = cv.height, GROUND = 268;
 
-  const LEVELS = [{
-    id: 'wallst',
-    name: 'Wall Street',
-    label: '01 / Wall Street',
-    // Deep indigo night, warming toward the horizon.
-    sky: ['#171a4a', '#1e2358', '#282e6b', '#343b7d'],
-    towerFar: '#252a5e', towerMid: '#2b3068',      // blue-violet skyscrapers
-    stone: ['#6d5a46', '#7d6a52', '#5d4c3c'],      // tan street-level blocks
-    trim: '#8a7660',
-    gold: '#f6c95f', goldHot: '#ffe6a0', coldWin: '#8fc0f0',
-    road: '#141634', kerb: '#3a3a5e', walk: '#232544',
-    tree: ['#1c4a33', '#276b46'],
-    signs: ['WALL ST', 'BROAD ST', 'NASSAU ST', 'EXCHANGE PL'],
-    tickers: ['AAPL', 'TSLA', 'NVDA', 'SPX', 'DJI', 'MSFT'],
-    from: 0
-  }];;
+  // Nine cities, each pinned to the hour it actually looks best. Night cities get
+  // stars, a moon and lit windows; day cities get a sun, real clouds and mostly
+  // dark glass. Everything else is palette.
+  const SPAN = 170;                                   // metres per city
+  const LEVELS = [
+    { id:'nyc', name:'New York', night:true,
+      sky:['#171a4a','#1e2358','#282e6b','#343b7d'],
+      towerFar:'#252a5e', towerMid:'#2b3068', stone:['#6d5a46','#7d6a52','#5d4c3c'], trim:'#8a7660',
+      gold:'#f6c95f', goldHot:'#ffe6a0', coldWin:'#8fc0f0',
+      road:'#141634', kerb:'#3a3a5e', walk:'#232544', tree:['#1c4a33','#276b46'],
+      signs:['WALL ST','BROAD ST','NASSAU ST'], mark:'bull', ticker:true },
+
+    { id:'sfo', name:'San Francisco', night:false,
+      sky:['#e8825c','#f2a878','#f8caa0','#fbe3c8'],   // fog burning off at sunset
+      towerFar:'#9a8aa4', towerMid:'#7d7090', stone:['#d9a49c','#e9c6b2','#c79690'], trim:'#f6e2cf',
+      gold:'#ffd9a0', goldHot:'#fff2da', coldWin:'#b9cfe4',
+      road:'#5d4d58', kerb:'#8d7a84', walk:'#7b6b74', tree:['#3f6b4a','#5b8d63'],
+      signs:['MARKET ST','LOMBARD ST','CASTRO'], mark:'bridge', fog:true },
+
+    { id:'lon', name:'London', night:false,
+      sky:['#5a6577','#6f7a8c','#8b95a4','#a8b0bb'],   // flat overcast dusk
+      towerFar:'#4a5361', towerMid:'#3f4753', stone:['#6b5b52','#7a675c','#5b4d46'], trim:'#8d7b6e',
+      gold:'#e8cf9a', goldHot:'#f6e6c2', coldWin:'#c2cedb',
+      road:'#3c414a', kerb:'#666d78', walk:'#575d67', tree:['#33513c','#47694f'],
+      signs:['FLEET ST','STRAND','CHEAPSIDE'], mark:'bigben', rain:true },
+
+    { id:'dxb', name:'Dubai', night:false,
+      sky:['#e0913f','#eeb35f','#f6cf8d','#fae7c0'],   // desert heat haze
+      towerFar:'#a8865f', towerMid:'#8f6f4c', stone:['#d8b483','#e7c99c','#c6a172'], trim:'#f0dcb8',
+      gold:'#fff0c0', goldHot:'#ffffe0', coldWin:'#9fd0e0',
+      road:'#6b563c', kerb:'#a0855f', walk:'#8d7452', tree:['#4a6b3a','#668a4c'],
+      signs:['SHEIKH ZAYED RD','AL FAHIDI','JUMEIRAH'], mark:'burj', sand:true },
+
+    { id:'mia', name:'Miami', night:true,
+      sky:['#2a2f6e','#6b4a94','#c96aa0','#f2a07e'],   // ocean drive, sun just gone
+      towerFar:'#4a3f7a', towerMid:'#5c4a86', stone:['#f0dcc8','#e8c8d8','#cfe8e0'], trim:'#ff8fc4',
+      gold:'#7ff0e0', goldHot:'#ffb8dc', coldWin:'#a8e8f0',
+      road:'#2a2450', kerb:'#6b4a86', walk:'#3f3468', tree:['#2c6b4a','#3f8f5c'],
+      signs:['OCEAN DR','COLLINS AVE','ESPANOLA WAY'], mark:'artdeco', palms:true, neon:true },
+
+    { id:'tyo', name:'Tokyo', night:true,
+      sky:['#160f2e','#221542','#31205a','#432c72'],   // neon bleeding into the sky
+      towerFar:'#2a1c4a', towerMid:'#352257', stone:['#3f2c53','#4c3663','#33234a'], trim:'#6b4a86',
+      gold:'#ff8fc4', goldHot:'#8ff0e8', coldWin:'#ffe36b',
+      road:'#1a1230', kerb:'#4a2f6b', walk:'#2c1e4a', tree:['#2c5a44','#3f7a5c'],
+      signs:['SHIBUYA','SHINJUKU','GINZA'], mark:'tokyotower', neon:true },
+
+    { id:'bom', name:'Mumbai', night:false,
+      sky:['#e8a35a','#f2bd7d','#f8d5a4','#fbe8cb'],   // warm afternoon haze
+      towerFar:'#9c8368', towerMid:'#846c53', stone:['#c9a276','#dcbb90','#b18c63'], trim:'#e8d0aa',
+      gold:'#ffe0a8', goldHot:'#fff2d6', coldWin:'#a8c8dc',
+      road:'#5f4c3a', kerb:'#94795c', walk:'#7f684f', tree:['#3d6b3a','#57894f'],
+      signs:['MARINE DR','COLABA','FORT'], mark:'gateway' },
+
+    { id:'sel', name:'Seoul', night:false,
+      sky:['#5fa8d8','#86c0e4','#aed6ee','#d4eaf7'],   // crisp bright daylight
+      towerFar:'#7e93a8', towerMid:'#68809a', stone:['#b8b0a4','#cbc4b8','#a49c90'], trim:'#dcd6cb',
+      gold:'#dce8f0', goldHot:'#f0f6fa', coldWin:'#9fc4dd',
+      road:'#5a606b', kerb:'#8d939c', walk:'#787e88', tree:['#2f6b3f','#469a57'],
+      signs:['GANGNAM-DAERO','MYEONGDONG','HONGDAE'], mark:'nseoul', mountains:true },
+
+    { id:'bkk', name:'Bangkok', night:false,
+      sky:['#d97a4e','#ec9d63','#f5c187','#fadfb6'],   // temple gold at sunset
+      towerFar:'#9c7550', towerMid:'#84603f', stone:['#c99a63','#dcb37e','#b0824f'], trim:'#f0d59a',
+      gold:'#ffd870', goldHot:'#fff0b0', coldWin:'#a8ccd0',
+      road:'#5f4632', kerb:'#96714c', walk:'#816044', tree:['#3a6b34','#548c48'],
+      signs:['SUKHUMVIT','SILOM','KHAO SAN'], mark:'watarun' },
+
+    { id:'pek', name:'Beijing', night:false,
+      sky:['#b8956a','#cdae86','#dfc7a6','#eddcc4'],   // imperial haze
+      towerFar:'#8a7a68', towerMid:'#736450', stone:['#9c4a3c','#b25a46','#843c30'], trim:'#d8b45a',
+      gold:'#f0d089', goldHot:'#fae6b8', coldWin:'#b0c4c8',
+      road:'#5a4d3e', kerb:'#8a7862', walk:'#786853', tree:['#3f5c34','#587a46'],
+      signs:['CHANG AN AVE','QIANMEN','WANGFUJING'], mark:'pagoda' },
+  ];
+  LEVELS.forEach((L, i) => { L.from = i * SPAN; L.label = `${String(i + 1).padStart(2, '0')} / ${L.name}`; });
+
+  // hex -> [r,g,b] and back, for blending one city's sky into the next
+  const hex2 = (h) => [parseInt(h.slice(1,3),16), parseInt(h.slice(3,5),16), parseInt(h.slice(5,7),16)];
+  const mix = (a, b, k) => {
+    const x = hex2(a), y = hex2(b);
+    return `rgb(${Math.round(x[0]+(y[0]-x[0])*k)},${Math.round(x[1]+(y[1]-x[1])*k)},${Math.round(x[2]+(y[2]-x[2])*k)})`;
+  };;;
 
   // ---------- state ----------
   const P = { x: 110, y: GROUND, vy: 0, w: 40, h: 46, duck: false, onGround: true };
@@ -34,7 +101,16 @@
   let best = 0;
   try { best = parseInt(localStorage.getItem('mindlab.runner.best') || '0', 10) || 0; } catch (e) { best = 0; }
 
-  const level = () => LEVELS[0];
+  let cityIdx = 0;
+  const level = () => LEVELS[cityIdx];
+  const cityAt = (m) => Math.min(LEVELS.length - 1, Math.floor(m / SPAN));
+  // Last 45m of a city blend into the next, so the sky changes before the
+  // buildings do and the handover does not snap.
+  function skyAt(i) {
+    const L = LEVELS[cityIdx], N = LEVELS[Math.min(LEVELS.length - 1, cityIdx + 1)];
+    const into = dist - LEVELS[cityIdx].from, k = into > SPAN - 45 ? (into - (SPAN - 45)) / 45 : 0;
+    return k > 0 ? mix(L.sky[i], N.sky[i], Math.min(1, k)) : L.sky[i];
+  }
   const duckH = 26;
 
   // ---------- world building ----------
@@ -54,11 +130,14 @@
   let stars = [], clouds = [], trees = [], props = [], moon = { x: W - 170, y: 54 };
 
   // Windows are baked in once so the lit pattern travels with its building.
-  function makeBuilding(layer, x, w, h) {
+  function makeBuilding(layer, x, w, h, city) {
     const street = layer === 2;
+    const CL = LEVELS[city];
     const cols = Math.max(2, Math.floor((w - 10) / (street ? 16 : 13)));
     const rows = Math.max(2, Math.floor((h - (street ? 26 : 20)) / (street ? 20 : 15)));
-    const on = street ? 0.74 : layer === 1 ? 0.6 : 0.42;
+    // Lights are on at night. By day most glass just reflects the sky.
+    const on = CL.night ? (street ? 0.74 : layer === 1 ? 0.6 : 0.42)
+                        : (street ? 0.30 : 0.10);
     const r = Math.random();
     const roof = street ? (r < 0.4 ? 'cornice' : 'flat')
       : r < 0.2 ? 'deco' : r < 0.36 ? 'spire' : r < 0.5 ? 'tank' : r < 0.6 ? 'mast' : 'flat';
@@ -79,7 +158,7 @@
     if (street) for (let sx = 7; sx < w - 10; sx += 16)
       shops.push({ dx: snap(sx), dark: Math.random() < 0.12 });
 
-    return { layer, x, w, h, roof, street, top, wS, hS, ww, wh, cells, shops,
+    return { layer, x, w, h, roof, street, top, wS, hS, ww, wh, cells, shops, city,
              tone: street ? Math.floor(Math.random() * 3) : 0,
              crown: !street && Math.random() < 0.18 };
   }
@@ -90,7 +169,7 @@
       let x = -90;
       while (x < W + 320) {
         const w = (layer === 2 ? 66 : 40) + Math.random() * gap;
-        skyline.push(makeBuilding(layer, x, w, minH + Math.random() * (maxH - minH)));
+        skyline.push(makeBuilding(layer, x, w, minH + Math.random() * (maxH - minH), cityIdx));
         x += w + (layer === 2 ? 4 + Math.random() * 26 : 5 + Math.random() * 12);
       }
     }
@@ -104,11 +183,11 @@
     lamps = [];
     for (let x = 60; x < W + 260; x += 250) lamps.push({ x, sign: Math.floor(Math.random() * level().signs.length) });
     // one ticker board and one bull somewhere down the street
-    props = [{ kind: 'ticker', x: 420 }, { kind: 'bull', x: 1180 }];
+    props = [{ kind: 'ticker', x: 460 }, { kind: 'mark', x: 1150 }];
   }
 
   function reset() {
-    obstacles = []; speed = 6; dist = 0; spawnIn = 70; over = false; tick = 0;
+    obstacles = []; speed = 6; dist = 0; spawnIn = 70; over = false; tick = 0; cityIdx = 0;
     P.y = GROUND; P.vy = 0; P.duck = false; P.onGround = true;
     buildSkyline(); paint();
   }
@@ -165,14 +244,35 @@
       if (overlap(me, box(o))) return end();
     }
 
-    // Depth: distant towers barely drift, the pavement rushes past.
+    cityIdx = cityAt(dist);
+
+    // Depth: distant towers barely drift, the pavement rushes past. Recycled
+    // buildings are rebuilt in the current city, so one skyline scrolls out as
+    // the next scrolls in rather than the whole street changing at once.
     const PAR = [0.05, 0.13, 0.30];
-    for (const b of skyline) { b.x -= speed * dt * PAR[b.layer]; if (b.x + b.w < -140) b.x += W + 420; }
+    for (const b of skyline) b.x -= speed * dt * PAR[b.layer];
+    const right = [-1e9, -1e9, -1e9];
+    for (const b of skyline) if (b.x + b.w > right[b.layer]) right[b.layer] = b.x + b.w;
+    for (let i = 0; i < skyline.length; i++) {
+      const b = skyline[i];
+      if (b.x + b.w >= -140) continue;
+      const L2 = b.layer;
+      const gap = L2 === 2 ? 4 + Math.random() * 26 : 5 + Math.random() * 12;
+      const w = (L2 === 2 ? 66 : 40) + Math.random() * (L2 === 0 ? 52 : L2 === 1 ? 60 : 58);
+      const [minH, maxH] = L2 === 0 ? [74, 150] : L2 === 1 ? [120, 215] : [86, 132];
+      const nb = makeBuilding(L2, right[L2] + gap, w, minH + Math.random() * (maxH - minH), cityIdx);
+      skyline[i] = nb;
+      right[L2] = nb.x + nb.w;
+    }
     for (const l of lamps) { l.x -= speed * dt * 0.72; if (l.x < -200) l.x += W + 320; }
     for (const t0 of trees) { t0.x -= speed * dt * 0.78; if (t0.x < -40) t0.x += W + 300; }
     for (const s of props) { s.x -= speed * dt * 0.34; if (s.x < -280) s.x += W + 900; }
 
     $('score').textContent = Math.floor(dist);
+    if ($('level-label').textContent !== level().label) {
+      $('level-label').textContent = level().label;
+      announce(`Now entering ${level().name}.`);
+    }
   }
 
   // Exactly one animation loop, ever. Restarting mid-run used to leave the old
@@ -219,9 +319,9 @@
     }
   }
 
-  function drawCloud(c) {
+  function drawCloud(c, L) {
     const y = c.y;
-    ctx.fillStyle = 'rgba(120,130,200,.20)';
+    ctx.fillStyle = L && !L.night ? 'rgba(255,255,255,.34)' : 'rgba(120,130,200,.20)';
     ctx.fillRect(snap(c.x), snap(y), snap(c.w), PX * 2);
     ctx.fillRect(snap(c.x + c.w * .2), snap(y - PX), snap(c.w * .55), PX * 2);
     ctx.fillRect(snap(c.x + c.w * .35), snap(y - PX * 2), snap(c.w * .3), PX * 2);
@@ -238,9 +338,10 @@
   function drawBuilding(b, L) {
     if (b.x > W + 40 || b.x + b.w < -40) return;
     const bx = snap(b.x), top = b.top;                     // <- the only snap
-    const body = b.street ? L.stone[b.tone] : (b.layer ? L.towerMid : L.towerFar);
+    const CL = LEVELS[b.city] || L;        // a building keeps its own city's colours
+    const body = b.street ? CL.stone[b.tone] : (b.layer ? CL.towerMid : CL.towerFar);
     raw(bx, top, b.wS, b.hS, body);
-    roofOf(b, top, body, L, bx);
+    roofOf(b, top, body, CL, bx);
 
     if (b.crown) raw(bx + PX, top + PX, b.wS - PX * 2, 12, 'rgba(120,180,240,.30)');
 
@@ -248,10 +349,11 @@
     for (const cell of b.cells) {
       const wx = bx + cell.dx;
       if (wx < -PX * 2 || wx > W + PX * 2) continue;
-      if (cell.v === 0) { raw(wx, top + cell.dy, b.ww, b.wh, 'rgba(12,14,40,.55)'); continue; }
+      if (cell.v === 0) { raw(wx, top + cell.dy, b.ww, b.wh,
+        L.night ? 'rgba(12,14,40,.55)' : 'rgba(255,255,255,.13)'); continue; }
       ctx.globalAlpha = alpha;
       raw(wx, top + cell.dy, b.ww, b.wh,
-          cell.v === 2 ? L.coldWin : (b.layer === 0 ? L.gold : L.goldHot));
+          cell.v === 2 ? CL.coldWin : (b.layer === 0 ? CL.gold : CL.goldHot));
       ctx.globalAlpha = 1;
     }
 
@@ -259,36 +361,99 @@
       const gy = snap(GROUND - 32);
       raw(bx + PX, gy, b.wS - PX * 2, 24, '#2a2036');
       for (const s of b.shops) {
-        raw(bx + s.dx, gy + PX, 12, 16, s.dark ? '#2a2036' : L.goldHot);
+        raw(bx + s.dx, gy + PX, 12, 16, s.dark ? '#2a2036' : CL.goldHot);
         if (!s.dark) raw(bx + s.dx - PX, gy + 20, 20, 12, 'rgba(246,201,95,.10)');
       }
-      raw(bx + PX, gy - PX, b.wS - PX * 2, PX, L.trim);
+      raw(bx + PX, gy - PX, b.wS - PX * 2, PX, CL.trim);
+    }
+  }
+
+  const TICKERS = ['AAPL', 'TSLA', 'NVDA', 'SPX', 'DJI', 'MSFT'];
+
+  // One landmark per city, drawn as a silhouette on the far side of the street.
+  function drawMark(x, L) {
+    const g = GROUND - 10, c = L.towerMid, lit = L.goldHot;
+    switch (L.mark) {
+      case 'bull':
+        raw(x, g - 26, 56, 20, '#8a6a3a'); raw(x + 48, g - 34, 18, 14, '#8a6a3a');
+        raw(x + 62, g - 38, 6, 5, '#a8834a'); raw(x + 46, g - 38, 6, 5, '#a8834a');
+        for (const dx of [4, 18, 34, 48]) raw(x + dx, g - 8, 7, 9, '#6f5430');
+        raw(x - 6, g - 30, 8, 16, '#6f5430'); break;
+      case 'bridge': {                                     // Golden Gate
+        const o = '#c1440e';
+        raw(x, g - 150, 10, 150, o); raw(x + 150, g - 150, 10, 150, o);
+        for (const y of [g - 130, g - 108]) { raw(x - 6, y, 22, 5, o); raw(x + 144, y, 22, 5, o); }
+        raw(x - 40, g - 62, 240, 5, o);                     // deck
+        for (let i = 0; i <= 15; i++) {                     // cables
+          const t0 = i / 15, cx = x + 5 + t0 * 150;
+          raw(cx, g - 150 + Math.sin(t0 * Math.PI) * 62, 3, 3, o);
+          raw(cx, g - 150 + Math.sin(t0 * Math.PI) * 62, 3, 88 - Math.sin(t0 * Math.PI) * 62, 'rgba(193,68,14,.5)');
+        }
+        break; }
+      case 'bigben':
+        raw(x, g - 168, 34, 168, '#7a6a52'); raw(x - 4, g - 176, 42, 10, '#8d7b60');
+        raw(x + 6, g - 158, 22, 22, '#f4e9c8'); raw(x + 16, g - 152, 3, 10, '#3a3226');
+        raw(x + 16, g - 148, 8, 3, '#3a3226');
+        raw(x + 8, g - 196, 18, 22, '#6b5c46'); raw(x + 14, g - 208, 6, 12, '#6b5c46'); break;
+      case 'burj': {                                        // Burj Khalifa
+        let w = 54, y = g;
+        for (let i = 0; i < 9; i++) { raw(x + (54 - w) / 2, y - 30, w, 30, c); y -= 30; w = Math.max(8, w - 6); }
+        raw(x + 24, y - 46, 5, 46, c); break; }
+      case 'artdeco':                                       // Miami hotel facade
+        raw(x, g - 92, 130, 92, L.stone[0]);
+        raw(x + 46, g - 112, 38, 20, L.stone[0]); raw(x + 60, g - 122, 10, 10, L.stone[0]);
+        for (let i = 0; i < 3; i++) raw(x + 8, g - 84 + i * 26, 114, 4, L.trim);
+        for (let i = 0; i < 5; i++) raw(x + 14 + i * 24, g - 60, 14, 22, lit);
+        raw(x + 30, g - 104, 70, 4, '#7ff0e0'); break;
+      case 'tokyotower': {
+        const o = '#e2503c'; let w = 62;
+        for (let i = 0; i < 6; i++) { const yy = g - 26 - i * 26;
+          raw(x + (62 - w) / 2, yy, w, 4, o);
+          raw(x + (62 - w) / 2, yy, 4, 26, o); raw(x + (62 - w) / 2 + w - 4, yy, 4, 26, o);
+          w = Math.max(10, w - 10); }
+        raw(x + 28, g - 210, 5, 30, o); raw(x + 22, g - 196, 18, 6, '#f4f4f4');
+        raw(x + 4, g - 26, 54, 26, o); break; }
+      case 'gateway':                                       // Gateway of India
+        raw(x, g - 88, 120, 88, L.stone[1]);
+        raw(x + 38, g - 62, 44, 62, L.road);                // arch opening
+        raw(x + 38, g - 62, 44, 8, L.stone[2]);
+        raw(x - 6, g - 100, 132, 12, L.stone[1]);
+        for (const dx of [2, 106]) { raw(x + dx, g - 122, 14, 22, L.stone[1]); raw(x + dx + 3, g - 130, 8, 8, L.trim); }
+        raw(x + 52, g - 118, 16, 18, L.stone[1]); break;
+      case 'nseoul':                                        // N Seoul Tower on Namsan
+        raw(x - 60, g - 46, 200, 46, L.tree[0]);
+        raw(x + 26, g - 130, 12, 90, '#c8ccd2');
+        raw(x + 14, g - 152, 36, 24, '#dfe3e8'); raw(x + 18, g - 160, 28, 10, '#c8ccd2');
+        raw(x + 30, g - 186, 4, 26, '#c8ccd2'); break;
+      case 'watarun': {                                     // Wat Arun prang
+        let w = 46, y = g;
+        for (let i = 0; i < 5; i++) { raw(x + (46 - w) / 2, y - 22, w, 22, '#e0cba8'); y -= 22; w -= 8; }
+        raw(x + 21, y - 34, 5, 34, '#f0d060');
+        for (const dx of [-26, 52]) { raw(x + dx, g - 40, 18, 40, '#e0cba8'); raw(x + dx + 7, g - 54, 4, 14, '#f0d060'); }
+        break; }
+      case 'pagoda':                                        // Forbidden City hall
+        raw(x, g - 54, 140, 54, '#9c4a3c');
+        for (let i = 0; i < 5; i++) raw(x + 12 + i * 28, g - 44, 14, 34, '#6b2f26');
+        raw(x - 10, g - 68, 160, 14, '#d8b45a'); raw(x - 16, g - 62, 172, 6, '#c4a049');
+        raw(x + 16, g - 88, 108, 20, '#d8b45a'); raw(x + 10, g - 82, 120, 6, '#c4a049');
+        break;
     }
   }
 
   function drawProp(s, L) {
-    if (s.x > W + 200 || s.x < -260) return;
-    if (s.kind === 'ticker') {
-      const w = 210, h = 78, y = GROUND - 150;
-      blk(s.x - 6, y - 6, w + 12, h + 12, '#241f33');
-      blk(s.x, y, w, h, '#06110b');
-      ctx.font = '700 15px "Courier New",monospace'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-      for (let i = 0; i < 3; i++) {
-        const sym = L.tickers[(i + Math.floor(tick / 220)) % L.tickers.length];
-        const up = ((i + Math.floor(tick / 220)) % 3) !== 1;
-        ctx.fillStyle = up ? '#57e08a' : '#e8705f';
-        ctx.fillText(`${sym} ${up ? '\u25B2' : '\u25BC'} ${(90 + i * 137 + (Math.floor(tick / 30) % 9)).toFixed(2)}`,
-                     snap(s.x + 14), snap(y + 12 + i * 22));
-      }
-    } else if (s.kind === 'bull') {
-      const x = s.x, y = GROUND - 10;
-      blk(x, y - 26, 54, 20, '#8a6a3a');            // body
-      blk(x + 46, y - 34, 18, 14, '#8a6a3a');       // head
-      blk(x + 60, y - 38, 6, 5, '#a8834a');         // horn
-      blk(x + 44, y - 38, 6, 5, '#a8834a');
-      blk(x + 4, y - 8, 7, 9, '#6f5430'); blk(x + 18, y - 8, 7, 9, '#6f5430');
-      blk(x + 34, y - 8, 7, 9, '#6f5430'); blk(x + 46, y - 8, 7, 9, '#6f5430');
-      blk(x - 6, y - 30, 8, 16, '#6f5430');         // tail
+    if (s.x > W + 260 || s.x < -300) return;
+    if (s.kind === 'mark') { drawMark(s.x, L); return; }
+    if (!L.ticker) return;
+    const w = 210, h = 78, y = GROUND - 150;
+    raw(snap(s.x - 6), y - 6, w + 12, h + 12, '#241f33');
+    raw(snap(s.x), y, w, h, '#06110b');
+    ctx.font = '700 15px "Courier New",monospace'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    for (let i = 0; i < 3; i++) {
+      const sym = TICKERS[(i + Math.floor(tick / 220)) % TICKERS.length];
+      const up = ((i + Math.floor(tick / 220)) % 3) !== 1;
+      ctx.fillStyle = up ? '#57e08a' : '#e8705f';
+      ctx.fillText(`${sym} ${up ? '\u25B2' : '\u25BC'} ${(90 + i * 137 + (Math.floor(tick / 30) % 9)).toFixed(2)}`,
+                   snap(s.x + 14), snap(y + 12 + i * 22));
     }
   }
 
@@ -297,25 +462,39 @@
     ctx.imageSmoothingEnabled = false;
 
     const bands = L.sky.length;
-    for (let i = 0; i < bands; i++) blk(0, (GROUND / bands) * i, W, GROUND / bands + PX, L.sky[i]);
+    for (let i = 0; i < bands; i++) blk(0, (GROUND / bands) * i, W, GROUND / bands + PX, skyAt(i));
 
-    for (const s of stars) {
-      const tw = 0.4 + 0.6 * Math.abs(Math.sin(tick / 40 + s.t));
-      ctx.fillStyle = `rgba(232,238,255,${(tw * (1 - s.y / 200)).toFixed(3)})`;
-      ctx.fillRect(snap(s.x), snap(s.y), PX, PX);
+    if (L.night) {
+      for (const s of stars) {
+        const tw = 0.4 + 0.6 * Math.abs(Math.sin(tick / 40 + s.t));
+        ctx.fillStyle = `rgba(232,238,255,${(tw * (1 - s.y / 200)).toFixed(3)})`;
+        ctx.fillRect(snap(s.x), snap(s.y), PX, PX);
+      }
     }
-    for (const c of clouds) drawCloud(c);
+    for (const c of clouds) drawCloud(c, L);
 
-    ctx.fillStyle = 'rgba(255,255,255,.07)';
-    ctx.beginPath(); ctx.arc(moon.x, moon.y, 34, 0, Math.PI * 2); ctx.fill();
-    blk(moon.x - 18, moon.y - 18, 36, 36, '#f4f6ff');
-    blk(moon.x - 22, moon.y - 14, 8, 28, L.sky[0]);
-    blk(moon.x - 6, moon.y - 10, 8, 8, '#dfe4f5');
-    blk(moon.x + 2, moon.y + 4, 5, 5, '#dfe4f5');
+    if (L.night) {
+      ctx.fillStyle = 'rgba(255,255,255,.07)';
+      ctx.beginPath(); ctx.arc(moon.x, moon.y, 34, 0, Math.PI * 2); ctx.fill();
+      blk(moon.x - 18, moon.y - 18, 36, 36, '#f4f6ff');
+      blk(moon.x - 22, moon.y - 14, 8, 28, skyAt(0));
+      blk(moon.x - 6, moon.y - 10, 8, 8, '#dfe4f5');
+      blk(moon.x + 2, moon.y + 4, 5, 5, '#dfe4f5');
+    } else {
+      ctx.fillStyle = 'rgba(255,240,200,.16)';
+      ctx.beginPath(); ctx.arc(moon.x, moon.y + 16, 52, 0, Math.PI * 2); ctx.fill();
+      blk(moon.x - 20, moon.y - 4, 40, 40, '#fff6d8');
+      blk(moon.x - 26, moon.y + 2, 52, 28, '#fff6d8');
+      blk(moon.x - 14, moon.y - 10, 28, 52, '#fff6d8');
+    }
 
     for (const layer of [0, 1, 2]) for (const b of skyline) if (b.layer === layer) drawBuilding(b, L);
     for (const s of props) drawProp(s, L);
 
+    if (L.fog || L.sand) {
+      ctx.fillStyle = L.fog ? 'rgba(232,236,244,.20)' : 'rgba(240,214,160,.18)';
+      ctx.fillRect(0, snap(GROUND - 130), W, 130);
+    }
     blk(0, GROUND - 10, W, 10, L.walk);
     blk(0, GROUND - 12, W, PX, L.kerb);
     for (const t0 of trees) drawTree(t0, L);

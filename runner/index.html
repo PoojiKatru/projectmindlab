@@ -1,10 +1,8 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <!-- Rename: replace every "NAME-HERE" in this file and in the nav link
-       in ../index.html. Five occurrences in total. -->
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>NAME-HERE · MindLab</title>
+  <title>City Dash · MindLab</title>
   <meta name="description" content="Run the Street. Jump the cash, duck the cash. A MindLab side game.">
   <link rel="stylesheet" href="styles.css">
   <script src="runner.js" defer></script>
@@ -13,13 +11,13 @@
 <main class="game">
   <header class="masthead">
     <a class="brand" href="../" aria-label="MindLab home">MindLab<span class="brand-symbol">Σ</span></a>
-    <span class="eyebrow">Side game / 01</span>
+    <span class="eyebrow">Side game</span>
   </header>
 
   <section class="heading">
     <div>
-      <p class="eyebrow">Level one — Wall Street</p>
-      <h1>NAME-HERE<span>.</span></h1>
+      <p class="eyebrow">Ten cities, one street</p>
+      <h1>City Dash<span>.</span></h1>
     </div>
     <button class="text-button" id="rules-toggle" aria-expanded="false" aria-controls="rules">How to play <span aria-hidden="true">＋</span></button>
   </section>
@@ -45,9 +43,9 @@
       <canvas id="c" width="960" height="320" aria-label="Game area" role="img"></canvas>
       <div class="overlay" id="overlay">
         <div>
-          <p class="eyebrow" id="over-eyebrow">Level one</p>
-          <h2 id="over-title">Run the Street.</h2>
-          <p id="over-text">Jump the cash on the ground. Duck the cash in the air.</p>
+          <p class="eyebrow" id="over-eyebrow">City Dash</p>
+          <h2 id="over-title">Ten cities.</h2>
+          <p id="over-text">Jump the cash on the ground, duck the cash in the air. Every 170m the city changes.</p>
           <button class="primary" id="go">Start running <span aria-hidden="true">→</span></button>
         </div>
       </div>
@@ -63,7 +61,7 @@
     <p class="sr-only" id="announcement" role="status" aria-live="polite"></p>
   </section>
 
-  <footer><span>MindLab / Math × psychology × economics</span><span>Level one of one. More Street to come.</span></footer>
+  <footer><span>MindLab / Math × psychology × economics</span><span>New York · San Francisco · London · Dubai · Miami · Tokyo · Mumbai · Seoul · Bangkok · Beijing</span></footer>
 </main>
 <noscript>This game needs JavaScript enabled to run.</noscript>
 </body></html>

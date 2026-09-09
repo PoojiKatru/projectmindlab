@@ -117,7 +117,7 @@
 
   let cityIdx = 0;
   const level = () => LEVELS[cityIdx];
-  const cityAt = (m) => Math.min(LEVELS.length - 1, Math.floor(m / SPAN));
+  const cityAt = (m) => Math.max(0, Math.min(LEVELS.length - 1, Math.floor(m / SPAN)));
   // Last 45m of a city blend into the next, so the sky changes before the
   // buildings do and the handover does not snap.
   function skyAt(i) {
@@ -242,7 +242,7 @@
   function step(dt) {
     tick += dt;
     speed = Math.min(15.5, 6 + dist / 260);
-    dist += (speed * dt) / 12;
+    dist = Math.max(0, dist + (speed * dt) / 12);
 
     P.vy += 0.62 * dt;
     P.y += P.vy * dt;
@@ -300,7 +300,12 @@
     const run = (ts) => {
       if (id !== loopId || !running) return;
       try {
-      const dt = Math.min(2.6, (ts - last) / 16.67 || 1);
+      // The timestamp rAF hands the first callback is the frame's start, which
+      // can predate the performance.now() taken when the loop was armed. That
+      // made dt negative and ran the distance backwards into LEVELS[-1].
+      let dt = (ts - last) / 16.67;
+      if (!(dt > 0)) dt = 1;
+      dt = Math.min(2.6, dt);
       last = ts;
       step(dt);
       if (id !== loopId || !running) return;   // step() may have ended the run

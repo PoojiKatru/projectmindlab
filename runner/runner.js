@@ -40,7 +40,16 @@
   // ---------- world building ----------
   const PX = 4;
   const snap = (n) => Math.round(n / PX) * PX;
-  function blk(x, y, w, h, c) { ctx.fillStyle = c; ctx.fillRect(snap(x), snap(y), snap(w), snap(h)); }
+  // Snap both edges, not the size. Snapping w/h separately from x/y let the far
+  // edge cross a grid line on a different frame from the near edge, so shapes
+  // visibly changed size by a pixel as they drifted.
+  function blk(x, y, w, h, c) {
+    const x0 = snap(x), y0 = snap(y);
+    ctx.fillStyle = c;
+    ctx.fillRect(x0, y0, Math.max(PX, snap(x + w) - x0), Math.max(PX, snap(y + h) - y0));
+  }
+  // Already grid-aligned: draw without re-snapping.
+  function raw(x, y, w, h, c) { ctx.fillStyle = c; ctx.fillRect(x, y, w, h); }
 
   let stars = [], clouds = [], trees = [], props = [], moon = { x: W - 170, y: 54 };
 
@@ -49,18 +58,30 @@
     const street = layer === 2;
     const cols = Math.max(2, Math.floor((w - 10) / (street ? 16 : 13)));
     const rows = Math.max(2, Math.floor((h - (street ? 26 : 20)) / (street ? 20 : 15)));
-    const win = [];
-    // The reference is densely lit — most windows are on.
     const on = street ? 0.74 : layer === 1 ? 0.6 : 0.42;
-    for (let i = 0; i < cols * rows; i++)
-      win.push(Math.random() < on ? (Math.random() < 0.12 ? 2 : 1) : 0);
     const r = Math.random();
     const roof = street ? (r < 0.4 ? 'cornice' : 'flat')
       : r < 0.2 ? 'deco' : r < 0.36 ? 'spire' : r < 0.5 ? 'tank' : r < 0.6 ? 'mast' : 'flat';
-    return { layer, x, w, h, cols, rows, win, roof, street,
+
+    // Everything below is measured from the building's own top-left and snapped
+    // once, here. At draw time only the origin is snapped, so windows can never
+    // drift against the wall they are painted on.
+    const top = snap(GROUND - h), wS = Math.max(PX, snap(w)), hS = GROUND - top;
+    const padY = street ? 20 : 14;
+    const cw = (w - 10) / cols, ch = (h - padY - (street ? 26 : 6)) / rows;
+    const ww = Math.max(PX, snap(cw * 0.55)), wh = Math.max(PX, snap(ch * 0.5));
+    const cells = [];
+    for (let ri = 0; ri < rows; ri++) for (let ci = 0; ci < cols; ci++)
+      cells.push({ dx: snap(5 + ci * cw), dy: snap(padY + ri * ch),
+                   v: Math.random() < on ? (Math.random() < 0.12 ? 2 : 1) : 0 });
+
+    const shops = [];
+    if (street) for (let sx = 7; sx < w - 10; sx += 16)
+      shops.push({ dx: snap(sx), dark: Math.random() < 0.12 });
+
+    return { layer, x, w, h, roof, street, top, wS, hS, ww, wh, cells, shops,
              tone: street ? Math.floor(Math.random() * 3) : 0,
-             shops: street ? Array.from({length: 12}, () => Math.random() < 0.12) : null,
-             crown: !street && Math.random() < 0.18 };   // blue-lit crown, as in the reference
+             crown: !street && Math.random() < 0.18 };
   }
 
   function buildSkyline() {
@@ -175,26 +196,26 @@
   }
 
   // ---------- drawing ----------
-  function roofOf(b, top, c, L) {
-    const cx = b.x + b.w / 2;
+  function roofOf(b, top, c, L, bx) {
+    const cx = snap(bx + b.wS / 2);
     if (b.roof === 'deco') {
-      blk(b.x + b.w * 0.16, top - 12, b.w * 0.68, 12, c);
-      blk(b.x + b.w * 0.34, top - 22, b.w * 0.32, 10, c);
+      raw(bx + snap(b.wS * 0.16), top - 12, snap(b.wS * 0.68), 12, c);
+      raw(bx + snap(b.wS * 0.34), top - 22, snap(b.wS * 0.32), 10, c);
       blk(cx - 2, top - 32, 4, 10, c);
     } else if (b.roof === 'spire') {
       blk(cx - 7, top - 13, 14, 13, c);
       blk(cx - 2, top - 33, 4, 20, c);
       if (Math.sin(tick / 20) > 0.3) blk(cx - 2, top - 37, 4, 4, '#e8705f');
     } else if (b.roof === 'tank') {
-      const tx = b.x + b.w * 0.58;
+      const tx = bx + snap(b.wS * 0.58);
       blk(tx, top - 15, 18, 11, c); blk(tx + 2, top - 21, 14, 6, c);
       blk(tx + 3, top - 4, 3, 5, c); blk(tx + 12, top - 4, 3, 5, c);
     } else if (b.roof === 'mast') {
       blk(cx - 1, top - 24, 2, 24, c);
       blk(cx - 5, top - 17, 10, 2, c); blk(cx - 3, top - 22, 6, 2, c);
     } else if (b.roof === 'cornice') {
-      blk(b.x - 3, top, b.w + 6, 6, L.trim);
-      blk(b.x - 1, top - 4, b.w + 2, 4, L.trim);
+      raw(bx - PX, top, b.wS + PX * 2, PX * 2, L.trim);
+      raw(bx, top - PX, b.wS, PX, L.trim);
     }
   }
 
@@ -215,40 +236,33 @@
   }
 
   function drawBuilding(b, L) {
-    const top = GROUND - b.h;
     if (b.x > W + 40 || b.x + b.w < -40) return;
+    const bx = snap(b.x), top = b.top;                     // <- the only snap
     const body = b.street ? L.stone[b.tone] : (b.layer ? L.towerMid : L.towerFar);
-    blk(b.x, top, b.w, b.h, body);
-    roofOf(b, top, body, L);
+    raw(bx, top, b.wS, b.hS, body);
+    roofOf(b, top, body, L, bx);
 
-    // a blue-lit crown on a few towers, like the glass skyscrapers in the reference
-    if (b.crown) blk(b.x + 3, top + 4, b.w - 6, 14, 'rgba(120,180,240,.30)');
+    if (b.crown) raw(bx + PX, top + PX, b.wS - PX * 2, 12, 'rgba(120,180,240,.30)');
 
-    const padY = b.street ? 20 : 14;
-    const cw = (b.w - 10) / b.cols, ch = (b.h - padY - (b.street ? 26 : 6)) / b.rows;
-    for (let r = 0; r < b.rows; r++) for (let c = 0; c < b.cols; c++) {
-      const v = b.win[r * b.cols + c];
-      const wx = b.x + 5 + c * cw, wy = top + padY + r * ch;
-      if (wx < -8 || wx > W + 8) continue;
-      if (v === 0) { blk(wx, wy, cw * 0.55, ch * 0.5, 'rgba(12,14,40,.55)'); continue; }
-      const col = v === 2 ? L.coldWin : (b.layer === 0 ? L.gold : L.goldHot);
-      ctx.globalAlpha = b.layer === 0 ? 0.55 : b.layer === 1 ? 0.8 : 1;
-      blk(wx, wy, cw * 0.55, ch * 0.5, col);
+    const alpha = b.layer === 0 ? 0.55 : b.layer === 1 ? 0.8 : 1;
+    for (const cell of b.cells) {
+      const wx = bx + cell.dx;
+      if (wx < -PX * 2 || wx > W + PX * 2) continue;
+      if (cell.v === 0) { raw(wx, top + cell.dy, b.ww, b.wh, 'rgba(12,14,40,.55)'); continue; }
+      ctx.globalAlpha = alpha;
+      raw(wx, top + cell.dy, b.ww, b.wh,
+          cell.v === 2 ? L.coldWin : (b.layer === 0 ? L.gold : L.goldHot));
       ctx.globalAlpha = 1;
     }
 
-    // lit shopfronts along the pavement
     if (b.street) {
-      const gy = GROUND - 32;
-      blk(b.x + 3, gy, b.w - 6, 22, '#2a2036');
-      let si = 0;
-      for (let x = b.x + 7; x < b.x + b.w - 10; x += 16, si++) {
-        // shuttered or lit is decided once per shop, not re-rolled every frame
-        blk(x, gy + 3, 11, 15, b.shops[si % b.shops.length] ? '#2a2036' : L.goldHot);
-        ctx.fillStyle = 'rgba(246,201,95,.10)';
-        ctx.fillRect(snap(x - 4), snap(gy + 18), snap(19), snap(14));   // spill onto pavement
+      const gy = snap(GROUND - 32);
+      raw(bx + PX, gy, b.wS - PX * 2, 24, '#2a2036');
+      for (const s of b.shops) {
+        raw(bx + s.dx, gy + PX, 12, 16, s.dark ? '#2a2036' : L.goldHot);
+        if (!s.dark) raw(bx + s.dx - PX, gy + 20, 20, 12, 'rgba(246,201,95,.10)');
       }
-      blk(b.x + 3, gy - 4, b.w - 6, 4, L.trim);
+      raw(bx + PX, gy - PX, b.wS - PX * 2, PX, L.trim);
     }
   }
 

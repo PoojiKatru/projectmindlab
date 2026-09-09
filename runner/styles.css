@@ -1,0 +1,78 @@
+/* Sigma Run — same palette as The Trust Table so the two games read as a pair. */
+:root{
+  color-scheme:dark;
+  --bg:#0a172a;--panel:#102139;--line:#304057;--ink:#edece6;--muted:#a8b5c8;
+  --blue:#aec8ed;--cash:#8fbf9f;--warn:#d9a28d;
+  font-family:Arial,Helvetica,sans-serif;font-size:16px;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink)}
+button{font:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
+button:disabled{cursor:default;opacity:.4}
+button:focus-visible,a:focus-visible{outline:2px solid var(--blue);outline-offset:5px}
+[hidden]{display:none!important}
+
+.game{max-width:1180px;margin:auto;padding:28px 40px 20px}
+.masthead{display:flex;align-items:center;justify-content:space-between;padding-bottom:21px;border-bottom:1px solid var(--line)}
+.brand{font-family:Georgia,'Times New Roman',serif;font-size:28px;letter-spacing:-1.4px;text-decoration:none;color:var(--ink)}
+.brand-symbol{font-size:21px;margin-left:16px;border-left:1px solid var(--line);padding-left:17px}
+.eyebrow{font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted);line-height:1.7}
+.heading{display:flex;justify-content:space-between;align-items:center;padding:24px 0 26px}
+.heading p{margin:0 0 8px}
+h1{font-family:Georgia,'Times New Roman',serif;font-weight:400;font-size:clamp(38px,5.3vw,64px);line-height:1.08;letter-spacing:-2px;margin:0}
+h1>span{color:var(--blue)}
+h2{font-family:Georgia,'Times New Roman',serif;font-weight:400;font-size:27px;line-height:1.2;margin:12px 0}
+p{line-height:1.6;color:var(--muted)}
+.text-button{border:0;background:transparent;color:var(--muted);padding:12px 0;font-size:14px}
+.text-button span{margin-left:12px}
+
+.rules{border:1px solid var(--line);padding:21px 25px;margin-bottom:25px}
+.rules h2{margin-top:0}
+.keys{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:18px}
+.keys>div{border-top:1px solid var(--line);padding-top:12px;display:flex;flex-direction:column;gap:6px}
+.keys span{font-size:13px;color:var(--muted)}
+.keys strong{font-family:Georgia,serif;font-weight:400;font-size:19px}
+.keys em{font-style:normal;font-size:12px;color:var(--muted)}
+
+.scoreline{display:flex;justify-content:space-between;align-items:baseline;border-top:1px solid var(--line);padding:17px 0 14px;gap:12px}
+.scores{font-family:Georgia,serif;font-size:30px;font-variant-numeric:tabular-nums;display:flex;align-items:baseline;gap:6px}
+.scores i{font-style:normal;font-size:14px;color:var(--muted);margin-right:14px}
+.best{font-size:14px;color:var(--muted);font-family:Arial,sans-serif}
+
+.stage{position:relative;border:1px solid var(--line);background:#08101d;line-height:0}
+canvas{display:block;width:100%;height:auto;touch-action:manipulation}
+.overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  text-align:center;background:rgba(8,16,29,.86);padding:20px}
+.overlay p{margin:0 0 6px}
+.overlay h2{margin:0 0 12px;font-size:34px}
+.overlay div{max-width:460px}
+.primary{border:1px solid var(--ink);background:var(--ink);color:var(--bg);padding:14px 22px;
+  min-height:48px;border-radius:2px;line-height:1.2;margin-top:14px}
+.primary:hover{background:var(--blue);border-color:var(--blue)}
+.primary span{margin-left:20px}
+.secondary{border:1px solid var(--line);background:transparent;color:var(--ink);
+  padding:12px 20px;min-height:46px;border-radius:2px}
+.secondary:hover{border-color:var(--blue)}
+
+.controls{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:8px 0 26px}
+.touch{display:none;gap:10px}
+footer{display:flex;justify-content:space-between;gap:15px;border-top:1px solid var(--line);
+  padding-top:18px;font-size:12px;color:var(--muted)}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
+
+@media(hover:none){.touch{display:flex}}
+@media(max-width:800px){
+  .game{padding:22px}
+  .keys{grid-template-columns:repeat(2,1fr)}
+  .heading{padding:22px 0}
+}
+@media(max-width:600px){
+  .game{padding:18px 16px}
+  .brand-symbol{display:none}
+  h1{font-size:39px;letter-spacing:-1.5px}
+  .overlay h2{font-size:26px}
+  .scores{font-size:24px}
+  .touch{flex:1}
+  .touch button{flex:1;padding:12px 8px}
+}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}

@@ -258,7 +258,7 @@ input:focus-visible{outline:2px solid var(--ochre);outline-offset:1px}
   font-variation-settings:'SOFT' 40,'WONK' 1,'opsz' 30}
 .dl-intro{font-size:16px;color:var(--mid);max-width:52ch;margin:0 0 26px}
 
-#p-data.page.on{max-width:none}
+#p-data.page.on,#p-run.page.on{max-width:none}
 .gameframe{display:block;width:100%;height:calc(100vh - 128px);min-height:660px;
   border:1px solid var(--cream-dk);background:#0a172a}
 @media(max-width:900px){.gameframe{height:calc(100vh - 96px);min-height:600px}}
@@ -342,6 +342,7 @@ code{font-family:var(--tw);font-size:16px;background:var(--ice);padding:1px 5px}
     <a href="#/sessions" data-n="sessions">Sessions</a>
     <a href="#/book" data-n="book">The Book</a>
     <a href="#/data" data-n="data">The Trust Table</a>
+    <a href="#/run" data-n="run">Sigma Run</a>
     <a href="#/about" data-n="about">About Us</a>
   </nav>
   <div class="foot">
@@ -440,6 +441,11 @@ code{font-family:var(--tw);font-size:16px;background:var(--ice);padding:1px 5px}
           loading="lazy"></iframe>
 </div>
 
+<!-- SIGMA RUN -->
+<div class="page" id="p-run">
+  <iframe class="gameframe" src="runner/index.html" title="Sigma Run" loading="lazy"></iframe>
+</div>
+
 <!-- ABOUT -->
 <div class="page" id="p-about">
   <div class="col">
@@ -520,7 +526,7 @@ code{font-family:var(--tw);font-size:16px;background:var(--ice);padding:1px 5px}
   });
 })();
 
-var PAGES=['home','sessions','book','data','about'];
+var PAGES=['home','sessions','book','data','run','about'];
 function route(){
   var h=location.hash.replace('#/','')||'home';
   if(PAGES.indexOf(h)<0)h='home';

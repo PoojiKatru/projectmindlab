@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sigma Run · MindLab</title>
+  <meta name="description" content="Run the Street. Jump the cash, duck the cash. A MindLab side game.">
+  <link rel="stylesheet" href="styles.css">
+  <script src="runner.js" defer></script>
+</head>
+<body>
+<main class="game">
+  <header class="masthead">
+    <a class="brand" href="../" aria-label="MindLab home">MindLab<span class="brand-symbol">Σ</span></a>
+    <span class="eyebrow">Side game / 01</span>
+  </header>
+
+  <section class="heading">
+    <div>
+      <p class="eyebrow">Level one — Wall Street</p>
+      <h1>Sigma Run<span>.</span></h1>
+    </div>
+    <button class="text-button" id="rules-toggle" aria-expanded="false" aria-controls="rules">How to play <span aria-hidden="true">＋</span></button>
+  </section>
+
+  <section class="rules" id="rules" hidden>
+    <h2>Two ways past the money.</h2>
+    <p>Cash stacked on the pavement you <strong>jump</strong>. Cash flying at your head you <strong>duck</strong>. It gets faster the longer you last.</p>
+    <div class="keys">
+      <div><span>Jump</span><strong>Space / ↑ / W</strong><em>or tap the top half</em></div>
+      <div><span>Duck</span><strong>↓ / S</strong><em>or tap the bottom half</em></div>
+      <div><span>Pause</span><strong>P</strong><em>or leave the tab</em></div>
+      <div><span>Restart</span><strong>R</strong><em>or press the button</em></div>
+    </div>
+  </section>
+
+  <section class="board">
+    <div class="scoreline">
+      <span class="eyebrow" id="level-label">01 / Wall Street</span>
+      <span class="scores"><span id="score">0</span><i>m</i><span class="best" id="best"></span></span>
+    </div>
+
+    <div class="stage">
+      <canvas id="c" width="960" height="320" aria-label="Sigma Run game area" role="img"></canvas>
+      <div class="overlay" id="overlay">
+        <div>
+          <p class="eyebrow" id="over-eyebrow">Level one</p>
+          <h2 id="over-title">Run the Street.</h2>
+          <p id="over-text">Jump the cash on the ground. Duck the cash in the air.</p>
+          <button class="primary" id="go">Start running <span aria-hidden="true">→</span></button>
+        </div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button class="text-button" id="reset">Restart</button>
+      <div class="touch" aria-hidden="true">
+        <button class="secondary" id="btn-jump">Jump</button>
+        <button class="secondary" id="btn-duck">Duck</button>
+      </div>
+    </div>
+    <p class="sr-only" id="announcement" role="status" aria-live="polite"></p>
+  </section>
+
+  <footer><span>MindLab / Math × psychology × economics</span><span>Level one of one. More Street to come.</span></footer>
+</main>
+<noscript>This game needs JavaScript enabled to run.</noscript>
+</body></html>

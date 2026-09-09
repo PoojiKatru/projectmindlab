@@ -7,6 +7,20 @@
   'use strict';
 
   const $ = (id) => document.getElementById(id);
+
+  // If anything throws, say so on the page. A silent failure here looks
+  // identical to "the button does nothing", which is impossible to report.
+  function fail(where, err) {
+    const msg = `${where}: ${err && err.message ? err.message : err}`;
+    try {
+      $('over-eyebrow').textContent = 'Something broke';
+      $('over-title').textContent = 'It stopped.';
+      $('over-text').textContent = msg;
+      $('overlay').hidden = false;
+    } catch (e) { /* nothing left to report with */ }
+    console.error('[city dash]', msg, err);
+  }
+  addEventListener('error', (e) => fail('load', e.error || e.message));
   const cv = $('c'), ctx = cv.getContext('2d');
   const W = cv.width, H = cv.height, GROUND = 268;
 
@@ -285,11 +299,13 @@
     last = performance.now();
     const run = (ts) => {
       if (id !== loopId || !running) return;
+      try {
       const dt = Math.min(2.6, (ts - last) / 16.67 || 1);
       last = ts;
       step(dt);
       if (id !== loopId || !running) return;   // step() may have ended the run
       paint();
+      } catch (err) { running = false; return fail('frame', err); }
       raf = requestAnimationFrame(run);
     };
     raf = requestAnimationFrame(run);
@@ -636,8 +652,10 @@
   $('btn-duck').addEventListener('pointerup', () => duck(false));
 
   $('go').addEventListener('click', () => {
-    if (paused) { paused = false; running = true; $('overlay').hidden = true; startLoop(); return; }
-    begin();
+    try {
+      if (paused) { paused = false; running = true; $('overlay').hidden = true; startLoop(); return; }
+      begin();
+    } catch (err) { fail('start', err); }
   });
   $('reset').addEventListener('click', begin);
   $('rules-toggle').addEventListener('click', () => {

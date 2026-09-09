@@ -50,11 +50,11 @@
       road:'#3c414a', kerb:'#666d78', walk:'#575d67', tree:['#33513c','#47694f'],
       signs:['FLEET ST','STRAND','CHEAPSIDE'], mark:'bigben', rain:true },
 
-    { id:'dxb', name:'Dubai', night:false,
-      sky:['#e0913f','#eeb35f','#f6cf8d','#fae7c0'],   // desert heat haze
+    { id:'dxb', name:'Dubai', night:true,
+      sky:['#12183c','#243056','#5c4a55','#c98a4a'],   // desert night, heat still on the horizon
       towerFar:'#a8865f', towerMid:'#8f6f4c', stone:['#d8b483','#e7c99c','#c6a172'], trim:'#f0dcb8',
-      gold:'#fff0c0', goldHot:'#ffffe0', coldWin:'#9fd0e0',
-      road:'#6b563c', kerb:'#a0855f', walk:'#8d7452', tree:['#4a6b3a','#668a4c'],
+      gold:'#ffe8a8', goldHot:'#fffbe0', coldWin:'#7fd0f0',
+      road:'#241c30', kerb:'#5c4a55', walk:'#33283c', tree:['#2f5236','#456b44'],
       signs:['SHEIKH ZAYED RD','AL FAHIDI','JUMEIRAH'], mark:'burj', sand:true },
 
     { id:'mia', name:'Miami', night:true,
@@ -72,7 +72,7 @@
       signs:['SHIBUYA','SHINJUKU','GINZA'], mark:'tokyotower', neon:true },
 
     { id:'bom', name:'Mumbai', night:false,
-      sky:['#e8a35a','#f2bd7d','#f8d5a4','#fbe8cb'],   // warm afternoon haze
+      sky:['#7a4a86','#c4685f','#ef9a5c','#f8caa0'],   // sunset over the Arabian Sea
       towerFar:'#9c8368', towerMid:'#846c53', stone:['#c9a276','#dcbb90','#b18c63'], trim:'#e8d0aa',
       gold:'#ffe0a8', goldHot:'#fff2d6', coldWin:'#a8c8dc',
       road:'#5f4c3a', kerb:'#94795c', walk:'#7f684f', tree:['#3d6b3a','#57894f'],
@@ -170,9 +170,12 @@
 
     const shops = [];
     if (street) for (let sx = 7; sx < w - 10; sx += 16)
-      shops.push({ dx: snap(sx), dark: Math.random() < 0.12 });
+      shops.push({ dx: snap(sx), dark: Math.random() < 0.10 });
+    const awning = street && Math.random() < 0.55
+      ? ['#8d3a3a', '#2f5a46', '#2f4a7a', '#7a5a2f'][Math.floor(Math.random() * 4)] : null;
+    const flag = street && Math.random() < 0.22;
 
-    return { layer, x, w, h, roof, street, top, wS, hS, ww, wh, cells, shops, city,
+    return { layer, x, w, h, roof, street, top, wS, hS, ww, wh, cells, shops, awning, flag, city,
              tone: street ? Math.floor(Math.random() * 3) : 0,
              crown: !street && Math.random() < 0.18 };
   }
@@ -182,9 +185,9 @@
     for (const [layer, gap, minH, maxH] of [[0, 52, 74, 150], [1, 60, 120, 215], [2, 58, 86, 132]]) {
       let x = -90;
       while (x < W + 320) {
-        const w = (layer === 2 ? 66 : 40) + Math.random() * gap;
+        const w = (layer === 2 ? 58 : 40) + Math.random() * gap;
         skyline.push(makeBuilding(layer, x, w, minH + Math.random() * (maxH - minH), cityIdx));
-        x += w + (layer === 2 ? 4 + Math.random() * 26 : 5 + Math.random() * 12);
+        x += w + (layer === 2 ? 2 + Math.random() * 8 : 5 + Math.random() * 12);
       }
     }
     stars = [];
@@ -271,8 +274,8 @@
       const b = skyline[i];
       if (b.x + b.w >= -140) continue;
       const L2 = b.layer;
-      const gap = L2 === 2 ? 4 + Math.random() * 26 : 5 + Math.random() * 12;
-      const w = (L2 === 2 ? 66 : 40) + Math.random() * (L2 === 0 ? 52 : L2 === 1 ? 60 : 58);
+      const gap = L2 === 2 ? 2 + Math.random() * 8 : 5 + Math.random() * 12;
+      const w = (L2 === 2 ? 58 : 40) + Math.random() * (L2 === 0 ? 52 : L2 === 1 ? 60 : 58);
       const [minH, maxH] = L2 === 0 ? [74, 150] : L2 === 1 ? [120, 215] : [86, 132];
       const nb = makeBuilding(L2, right[L2] + gap, w, minH + Math.random() * (maxH - minH), cityIdx);
       skyline[i] = nb;
@@ -348,12 +351,17 @@
     ctx.fillRect(snap(c.x + c.w * .35), snap(y - PX * 2), snap(c.w * .3), PX * 2);
   }
 
+  // Rounded canopy in three tones — a flat block reads as a bush, not a tree.
   function drawTree(t0, L) {
-    const x = t0.x, base = GROUND - 10, h = t0.h;
-    blk(x - 2, base - h * 0.42, 5, h * 0.42, '#3a2b20');            // trunk
-    blk(x - 13, base - h, 26, h * 0.6, L.tree[0]);                  // canopy
-    blk(x - 9, base - h - 6, 18, 8, L.tree[0]);
-    blk(x - 10, base - h + 2, 12, h * 0.3, L.tree[1]);              // highlight
+    const x = snap(t0.x), base = snap(GROUND - 10), h = snap(t0.h);
+    raw(x - PX, base - h * 0.45, PX * 2, h * 0.45, '#3a2b20');
+    const cy = base - h;
+    raw(x - 16, cy + 10, 32, h * 0.42, L.tree[0]);
+    raw(x - 12, cy + PX, 24, h * 0.5, L.tree[0]);
+    raw(x - 8, cy - PX * 2, 16, 12, L.tree[0]);
+    raw(x - 10, cy + 8, 12, h * 0.28, L.tree[1]);
+    raw(x + 2, cy + 14, 8, h * 0.2, L.tree[1]);
+    raw(x - 6, cy + PX, 8, 8, L.tree[1]);
   }
 
   function drawBuilding(b, L) {
@@ -376,6 +384,11 @@
       raw(wx, top + cell.dy, b.ww, b.wh,
           cell.v === 2 ? CL.coldWin : (b.layer === 0 ? CL.gold : CL.goldHot));
       ctx.globalAlpha = 1;
+      // A frame and a centre bar turn a lit rectangle into a window.
+      if (b.street && b.ww >= PX * 3) {
+        raw(wx, top + cell.dy, b.ww, PX, 'rgba(0,0,0,.34)');
+        raw(wx + (b.ww >> 1) - (PX >> 1), top + cell.dy, PX, b.wh, 'rgba(0,0,0,.28)');
+      }
     }
 
     if (b.street) {
@@ -386,6 +399,17 @@
         if (!s.dark) raw(bx + s.dx - PX, gy + 20, 20, 12, 'rgba(246,201,95,.10)');
       }
       raw(bx + PX, gy - PX, b.wS - PX * 2, PX, CL.trim);
+      if (b.awning) {                       // striped awning over the shopfront
+        raw(bx + PX, gy - PX * 2, b.wS - PX * 2, PX * 2, b.awning);
+        for (let sx = bx + PX; sx < bx + b.wS - PX; sx += PX * 4)
+          raw(sx, gy - PX * 2, PX * 2, PX * 2, 'rgba(255,255,255,.30)');
+      }
+      if (b.flag) {                         // pole and banner off the facade
+        const fy = top + 18;
+        raw(bx + b.wS - PX, fy, PX * 5, PX, '#4a4034');
+        raw(bx + b.wS + PX * 3, fy, PX, 14, '#4a4034');
+        raw(bx + b.wS + PX * 4, fy + PX, 16, 11, CL.gold);
+      }
     }
   }
 
@@ -528,12 +552,23 @@
       ctx.fillStyle = 'rgba(246,201,95,.13)';
       ctx.beginPath(); ctx.moveTo(l.x - 14, GROUND - 106); ctx.lineTo(l.x + 18, GROUND - 106);
       ctx.lineTo(l.x + 42, GROUND); ctx.lineTo(l.x - 38, GROUND); ctx.closePath(); ctx.fill();
-      const label = L.signs[l.sign];
-      ctx.font = '700 10px Arial'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-      const tw = ctx.measureText(label).width;
-      blk(l.x + 6, GROUND - 100, tw + 14, 17, '#12142e');
-      blk(l.x + 6, GROUND - 100, tw + 14, PX, '#4a4d80');
-      ctx.fillStyle = '#eef1ff'; ctx.fillText(label, snap(l.x + 13), snap(GROUND - 95));
+    }
+
+    // Street sign: a tall post carrying two plates at right angles, the way the
+    // corner of Wall and Broad actually reads.
+    for (const l of lamps) {
+      const px = snap(l.x + 96);
+      if (px < -80 || px > W + 80) continue;
+      raw(px, snap(GROUND - 128), PX, 118, '#2b2f45');
+      ctx.font = '700 11px Arial'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+      for (let i = 0; i < 2; i++) {
+        const label = L.signs[(l.sign + i) % L.signs.length];
+        const tw = ctx.measureText(label).width, py = snap(GROUND - 128 + i * 20);
+        raw(px - (i ? snap(tw) + 6 : 0), py, snap(tw) + 18, 17, '#11142c');
+        raw(px - (i ? snap(tw) + 6 : 0), py, snap(tw) + 18, PX, '#4c5d80');
+        ctx.fillStyle = '#f2f4ff';
+        ctx.fillText(label, snap(px + 6 - (i ? snap(tw) + 6 : 0)), snap(py + 5));
+      }
     }
 
     blk(0, GROUND, W, H - GROUND, L.road);

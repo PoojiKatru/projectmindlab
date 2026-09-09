@@ -543,30 +543,50 @@
     drawSigma();
   }
 
-  function drawCash(o) {
+  // Obstacles have to read on every city: Tokyo's near-black sky and Seoul's
+  // bright blue one. So each is a saturated fill with BOTH a dark outline and a
+  // light inner rim — one of the two always separates it from the background.
+  const OUT = '#1a1208', RIM = '#fff6e2';
+
+  function edged(x, y, w, h, fill) {
+    raw(x - PX, y - PX, w + PX * 2, h + PX * 2, OUT);   // dark halo
+    raw(x, y, w, h, fill);
+  }
+
+  function drawCash(o) {                                 // name kept: collision code calls it
     const b = box(o);
-    if (o.type === 'high') {
-      // loose notes tumbling at head height
-      for (let i = 0; i < o.notes; i++) {
-        const nx = b.x + i * (b.w / o.notes), ny = b.y + Math.sin(tick / 9 + i) * 4;
-        note(nx, ny, b.w / o.notes - 4, b.h - 6, (Math.sin(tick / 14 + i) * 0.22));
-      }
-    } else {
-      const nh = b.h / o.notes;
-      for (let i = 0; i < o.notes; i++) note(b.x, b.y + i * nh + 1, b.w, nh - 2, 0);
+    if (o.type === 'high') drawBirds(b, o);
+    else drawCones(b, o);
+  }
+
+  // Ground: roadwork barriers. Orange and white is the most legible warning
+  // pairing there is, which is exactly why real roads use it.
+  function drawCones(b, o) {
+    const n = Math.max(1, o.notes);
+    const cw = b.w / n;
+    for (let i = 0; i < n; i++) {
+      const x = snap(b.x + i * cw), w = snap(cw) - PX, top = snap(b.y), h = snap(b.h);
+      edged(x, top, w, h, '#ff7a1a');
+      raw(x, snap(top + h * 0.36), w, PX * 2, RIM);      // reflective bands
+      raw(x, snap(top + h * 0.68), w, PX * 2, RIM);
+      raw(x - PX, snap(b.y + h - PX), w + PX * 2, PX, OUT);
     }
   }
 
-  function note(x, y, w, h, rot) {
-    ctx.save();
-    ctx.translate(x + w / 2, y + h / 2); ctx.rotate(rot); ctx.translate(-w / 2, -h / 2);
-    ctx.fillStyle = '#8fbf9f'; ctx.fillRect(0, 0, w, h);
-    ctx.strokeStyle = '#5f8f70'; ctx.lineWidth = 1; ctx.strokeRect(0.5, 0.5, w - 1, h - 1);
-    ctx.fillStyle = '#456b52';
-    ctx.font = `${Math.max(9, Math.min(15, h - 8))}px Georgia`;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('$', w / 2, h / 2 + 0.5);
-    ctx.restore();
+  // Air: pigeons. They belong at head height in a city, and a pale body over a
+  // dark outline stays visible against anything.
+  function drawBirds(b, o) {
+    const n = Math.max(1, o.notes), bw = b.w / n;
+    for (let i = 0; i < n; i++) {
+      const flap = Math.sin(tick / 6 + i * 1.7);
+      const x = snap(b.x + i * bw), y = snap(b.y + flap * 3);
+      edged(x, y + PX * 2, snap(bw) - PX * 2, PX * 4, RIM);         // body
+      raw(snap(x + bw - PX * 3), y + PX, PX * 3, PX * 3, RIM);      // head
+      raw(snap(x + bw - PX), snap(y + PX * 2), PX * 2, PX, '#ff7a1a'); // beak
+      const wy = snap(y + (flap > 0 ? -PX * 2 : PX * 4));           // wing beat
+      edged(snap(x + PX * 2), wy, snap(bw) - PX * 6, PX * 2, '#cfd8e8');
+      raw(snap(x - PX * 2), snap(y + PX * 3), PX * 3, PX, RIM);     // tail
+    }
   }
 
   function drawSigma() {
@@ -595,7 +615,7 @@
   function begin() {
     reset(); running = true; over = false; paused = false;
     $('overlay').hidden = true; last = performance.now();
-    announce('Running. Jump the cash on the ground, duck the cash in the air.');
+    announce('Running. Jump the barriers, duck the pigeons.');
     startLoop();
   }
 

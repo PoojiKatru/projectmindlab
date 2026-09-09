@@ -30,7 +30,7 @@
   // ---------- state ----------
   const P = { x: 110, y: GROUND, vy: 0, w: 40, h: 46, duck: false, onGround: true };
   let obstacles = [], skyline = [], lamps = [], speed = 6, dist = 0, spawnIn = 90,
-      running = false, over = false, paused = false, raf = null, last = 0, tick = 0;
+      running = false, over = false, paused = false, raf = null, last = 0, tick = 0, loopId = 0;
   let best = 0;
   try { best = parseInt(localStorage.getItem('mindlab.runner.best') || '0', 10) || 0; } catch (e) { best = 0; }
 
@@ -154,12 +154,24 @@
     $('score').textContent = Math.floor(dist);
   }
 
-  function frame(ts) {
-    if (!running) return;
-    const dt = Math.min(2.6, (ts - last) / 16.67 || 1);
-    last = ts;
-    step(dt); paint();
-    if (running) raf = requestAnimationFrame(frame);
+  // Exactly one animation loop, ever. Restarting mid-run used to leave the old
+  // requestAnimationFrame chain alive alongside the new one, so tick advanced
+  // two or three times per displayed frame and every tick-driven animation —
+  // the twinkling stars, the roof lights, the ticker — strobed.
+  function startLoop() {
+    if (raf) cancelAnimationFrame(raf);
+    const id = ++loopId;
+    last = performance.now();
+    const run = (ts) => {
+      if (id !== loopId || !running) return;
+      const dt = Math.min(2.6, (ts - last) / 16.67 || 1);
+      last = ts;
+      step(dt);
+      if (id !== loopId || !running) return;   // step() may have ended the run
+      paint();
+      raf = requestAnimationFrame(run);
+    };
+    raf = requestAnimationFrame(run);
   }
 
   // ---------- drawing ----------
@@ -370,11 +382,11 @@
     reset(); running = true; over = false; paused = false;
     $('overlay').hidden = true; last = performance.now();
     announce('Running. Jump the cash on the ground, duck the cash in the air.');
-    raf = requestAnimationFrame(frame);
+    startLoop();
   }
 
   function end() {
-    running = false; over = true;
+    running = false; over = true; loopId++;      // invalidate any in-flight frame
     if (raf) cancelAnimationFrame(raf);
     const m = Math.floor(dist), isBest = m > best;
     if (isBest) { best = m; try { localStorage.setItem('mindlab.runner.best', String(best)); } catch (e) {} }
@@ -398,7 +410,7 @@
   function pause(on) {
     if (!running || over) return;
     paused = on;
-    if (on) { if (raf) cancelAnimationFrame(raf); running = false; $('overlay').hidden = false;
+    if (on) { loopId++; if (raf) cancelAnimationFrame(raf); running = false; $('overlay').hidden = false;
       $('over-eyebrow').textContent = 'Paused'; $('over-title').textContent = 'Held.';
       $('over-text').textContent = 'Press P or the button to keep running.';
       $('go').innerHTML = 'Resume <span aria-hidden="true">→</span>'; }
@@ -431,7 +443,7 @@
   $('btn-duck').addEventListener('pointerup', () => duck(false));
 
   $('go').addEventListener('click', () => {
-    if (paused) { paused = false; running = true; $('overlay').hidden = true; last = performance.now(); raf = requestAnimationFrame(frame); return; }
+    if (paused) { paused = false; running = true; $('overlay').hidden = true; startLoop(); return; }
     begin();
   });
   $('reset').addEventListener('click', begin);

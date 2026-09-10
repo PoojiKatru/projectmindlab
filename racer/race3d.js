@@ -7,6 +7,10 @@
  * three-dimensional.
  */
 import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -19,7 +23,7 @@ const ACCEL = 15, BRAKE = -38, DRAG = -5, OFF_DRAG = -26, OFF_MAX = 26;
 const STEER_RATE = 9;
 const DRIFT_YAW = 1.05;      // extra rotation the back end gives you on the handbrake
 
-let scene, camera, renderer, clock;
+let scene, camera, renderer, composer, bloom, envMap;
 let curve, curveLen, roadMesh;
 let car, rivals = [], cockpit = null, camMode = 0;   // 0 = cockpit
 let dist = 0, lat = 0, speed = 0, steer = 0, yaw = 0, slip = 0, keys = {};
@@ -185,18 +189,26 @@ function buildCircuit() {
     return new THREE.Mesh(g, mat);
   };
 
-  roadMesh = ribbon(road, new THREE.MeshLambertMaterial({
-    color: 0xffffff, map: asphaltTex(), side: THREE.DoubleSide }));
+  roadMesh = ribbon(road, new THREE.MeshStandardMaterial({
+    color: 0xffffff, map: asphaltTex(), side: THREE.DoubleSide,
+    roughness: 0.34, metalness: 0.22, envMapIntensity: 1.3 }));
+  roadMesh.receiveShadow = true;
   scene.add(roadMesh);
 
-  const kerbMat = new THREE.MeshLambertMaterial({ color: 0xffffff, map: kerbTex(), side: THREE.DoubleSide });
+  // Emissive kerbs so bloom catches them and they read as lit strips.
+  const kerbMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff, map: kerbTex(), emissiveMap: kerbTex(),
+    emissive: 0xffffff, emissiveIntensity: 0.85,
+    roughness: 0.4, metalness: 0.2, side: THREE.DoubleSide });
   for (const flat of [kerbL, kerbR]) scene.add(ribbon(flat, kerbMat));
-  scene.add(ribbon(verge, new THREE.MeshLambertMaterial({
-    color: 0xffffff, map: grassTex(6, 40), side: THREE.DoubleSide })));
+  const vg = ribbon(verge, new THREE.MeshStandardMaterial({
+    color: 0xffffff, map: grassTex(6, 40), side: THREE.DoubleSide,
+    roughness: 0.55, metalness: 0.1 }));
+  vg.receiveShadow = true; scene.add(vg);
 
   // armco barriers + advertising boards on the outside of the lap
   const barGeo = new THREE.BoxGeometry(1, 1.1, 1);
-  const barMat = new THREE.MeshLambertMaterial({ color: 0x2b2340, emissive: 0x2a0f3d });
+  const barMat = new THREE.MeshStandardMaterial({ color: 0x2b2340, roughness: 0.6, metalness: 0.35 });
   const adMat = [0xff2fa0, 0x26e8ff, 0xb44cff].map((c) => new THREE.MeshBasicMaterial({ color: c }));
   const bars = new THREE.InstancedMesh(barGeo, barMat, Math.floor(N / 3) * 2 + 4);
   let bi = 0; const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3();
@@ -223,7 +235,7 @@ function buildCircuit() {
   // City blocks pressed right up against the barriers, so the circuit runs
   // through streets rather than past scenery.
   const NEON = [0xff2fa0, 0x26e8ff, 0xb44cff, 0xffd23f, 0x3fff9e];
-  const blockMat = new THREE.MeshLambertMaterial({ color: 0x1b1730 });
+  const blockMat = new THREE.MeshStandardMaterial({ color: 0x1b1730, roughness: 0.92, metalness: 0.08 });
   const nBlocks = 150;
   const blocks = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), blockMat, nBlocks);
   const winMats = NEON.map((c) => new THREE.MeshBasicMaterial({ color: c, fog: true }));
@@ -231,11 +243,28 @@ function buildCircuit() {
     new THREE.BoxGeometry(1, 1, 1), winMats[i], 90));
   const stripN = NEON.map(() => 0);
 
-  for (let bIdx = 0; bIdx < nBlocks; bIdx++) {
+  // The circuit doubles back on itself, so "25m to the side of segment 400" can
+  // land squarely on segment 90. Every candidate is checked against the whole
+  // centreline, not just the segment it came from — that is why buildings were
+  // standing in the middle of the road.
+  const clearOf = (v, need) => {
+    for (let j = 0; j < N; j += 2) {
+      const dx = v.x - pts[j].x, dz = v.z - pts[j].z;
+      if (dx * dx + dz * dz < need * need) return false;
+    }
+    return true;
+  };
+
+  let placed = 0;
+  for (let attempt = 0; attempt < nBlocks * 14 && placed < nBlocks; attempt++) {
+    const bIdx = placed;
     const i = Math.floor(Math.random() * N), s = Math.random() < 0.5 ? 1 : -1;
-    const off = ROAD_W + 11 + Math.random() * 26;
+    const off = ROAD_W + 13 + Math.random() * 24;
     const p = pts[i].clone().addScaledVector(normals[i], s * off);
     const hgt = 16 + Math.random() * 62, wid = 12 + Math.random() * 16, dep = 12 + Math.random() * 20;
+    // half the diagonal, so no corner of the block can reach the tarmac
+    if (!clearOf(p, ROAD_W + 9 + Math.hypot(wid, dep) / 2)) continue;
+    placed++;
     q.setFromUnitVectors(new THREE.Vector3(0, 0, 1), tangents[i]);
     m.compose(new THREE.Vector3(p.x, p.y + hgt / 2, p.z), q, new THREE.Vector3(wid, hgt, dep));
     blocks.setMatrixAt(bIdx, m);
@@ -250,6 +279,7 @@ function buildCircuit() {
       strips[ci].setMatrixAt(stripN[ci]++, m);
     }
   }
+  blocks.count = placed;
   blocks.instanceMatrix.needsUpdate = true;
   scene.add(blocks);
   strips.forEach((sm, i) => { sm.count = stripN[i]; sm.instanceMatrix.needsUpdate = true; scene.add(sm); });
@@ -283,13 +313,17 @@ function buildCircuit() {
 // ---------- cars ----------
 function buildCar(colour, accent) {
   const g = new THREE.Group();
-  const body = new THREE.MeshLambertMaterial({ color: colour });
-  const dark = new THREE.MeshLambertMaterial({ color: 0x14181f });
-  const trim = new THREE.MeshLambertMaterial({ color: accent });
+  const body = new THREE.MeshStandardMaterial({
+    color: colour, roughness: 0.24, metalness: 0.72, envMapIntensity: 1.5 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x14181f, roughness: 0.5, metalness: 0.5 });
+  const trim = new THREE.MeshStandardMaterial({
+    color: accent, roughness: 0.3, metalness: 0.4,
+    emissive: accent, emissiveIntensity: 0.35 });
 
   const add = (geo, mat, x, y, z, ry = 0) => {
     const m = new THREE.Mesh(geo, mat);
-    m.position.set(x, y, z); m.rotation.y = ry; g.add(m); return m;
+    m.position.set(x, y, z); m.rotation.y = ry;
+    m.castShadow = true; g.add(m); return m;
   };
   add(new THREE.BoxGeometry(1.5, 0.42, 4.4), body, 0, 0.55, 0);          // tub
   add(new THREE.BoxGeometry(0.75, 0.34, 2.0), body, 0, 0.62, -2.6);      // nose
@@ -419,7 +453,37 @@ function init() {
 
   renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(2, devicePixelRatio || 1));
+  // Filmic tone mapping and a correct colour space. Without these, bright neon
+  // clips to flat white and everything else reads washed out and plasticky.
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.18;
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   host.appendChild(renderer.domElement);
+
+  // Bloom is what makes neon look like light rather than like coloured plastic.
+  try {
+    composer = new EffectComposer(renderer);
+    composer.addPass(new RenderPass(scene, camera));
+    bloom = new UnrealBloomPass(new THREE.Vector2(1024, 576), 1.15, 0.62, 0.62);
+    composer.addPass(bloom);
+    composer.addPass(new SMAAPass(1024, 576));
+  } catch (e) {
+    // If post-processing is unavailable, draw straight to the screen rather
+    // than losing the whole game to a missing effect.
+    composer = null; bloom = null;
+    console.warn('[apex3d] post-processing unavailable, rendering direct', e);
+  }
+
+  // A cheap environment map off the sky dome, so wet tarmac and car paint have
+  // something to reflect instead of being uniformly matte.
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const envScene = new THREE.Scene();
+  envScene.add(skyDome());
+  envMap = pmrem.fromScene(envScene, 0.04).texture;
+  scene.environment = envMap;
+
   resize();
   addEventListener('resize', resize);
 
@@ -427,6 +491,11 @@ function init() {
   // and two coloured keys so everything picks up a pink or cyan edge.
   scene.add(new THREE.HemisphereLight(0x5a4a9a, 0xff2f8a, 0.85));
   const k1 = new THREE.DirectionalLight(0xff5fc0, 1.05); k1.position.set(-180, 140, 90);
+  k1.castShadow = true;
+  k1.shadow.mapSize.set(1024, 1024);
+  k1.shadow.camera.near = 20; k1.shadow.camera.far = 620;
+  k1.shadow.camera.left = -180; k1.shadow.camera.right = 180;
+  k1.shadow.camera.top = 180; k1.shadow.camera.bottom = -180;
   const k2 = new THREE.DirectionalLight(0x40d8ff, 0.9); k2.position.set(170, 120, -140);
   scene.add(k1); scene.add(k2);
   scene.add(new THREE.AmbientLight(0x2a2050, 0.7));
@@ -474,6 +543,7 @@ function resize() {
   const s = $('stage');
   const w = s.clientWidth || 960, h = s.clientHeight || 540;
   renderer.setSize(w, h, false);
+  if (composer) composer.setSize(w, h);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
 }
@@ -637,7 +707,12 @@ function showSplit(t) {
 }
 
 // ---------- loop ----------
-function renderFrame() { renderer.render(scene, camera); }
+function renderFrame() {
+  // Bloom rises with speed, so the lights smear as you get quicker.
+  if (bloom) bloom.strength = 0.95 + (speed / MAX_SPEED) * 0.75;
+  if (composer) composer.render();
+  else renderer.render(scene, camera);
+}
 
 function startLoop() {
   if (raf) cancelAnimationFrame(raf);

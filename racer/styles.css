@@ -105,3 +105,17 @@ button{font:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
 }
 .keys5{grid-template-columns:repeat(5,1fr)}
 @media(max-width:700px){.keys5{grid-template-columns:repeat(3,1fr)}}
+.keys6{grid-template-columns:repeat(6,1fr)}
+@media(max-width:700px){.keys6{grid-template-columns:repeat(3,1fr)}}
+
+/* mute toggle, bottom-left of the HUD */
+.mute{position:absolute;left:14px;bottom:14px;pointer-events:auto;
+  background:var(--panel);border:1px solid var(--line);border-radius:6px;
+  width:44px;height:44px;font-size:19px;line-height:1;color:var(--ink);
+  backdrop-filter:blur(6px);display:grid;place-items:center}
+.mute:hover{border-color:#5b6478}
+.mute .off{display:none}
+.mute[aria-pressed="true"] .on{display:none}
+.mute[aria-pressed="true"] .off{display:block}
+.mute[aria-pressed="true"]{opacity:.65}
+@media(hover:none){.mute{left:auto;right:14px;bottom:172px}}

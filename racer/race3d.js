@@ -569,6 +569,7 @@ const Audio = (() => {
       sq.connect(sf); sf.connect(squealGain); squealGain.connect(master); sq.start();
 
       ready = true;
+      if (muted) master.gain.value = 0;
     } catch (e) { console.warn('[apex3d] audio unavailable', e); }
   }
 
@@ -591,7 +592,17 @@ const Audio = (() => {
   }
 
   function stop() { if (ready) { engGain.gain.value = 0; windGain.gain.value = 0; squealGain.gain.value = 0; } }
-  return { start, update, stop };
+  // Muting rides the master gain rather than suspending the context, so the
+  // engine is already at the right note when you turn it back on.
+  let muted = false;
+  function setMuted(m) {
+    muted = m;
+    if (ready) master.gain.setTargetAtTime(m ? 0 : 0.26, ctx.currentTime, 0.02);
+    try { localStorage.setItem('apex3d.muted', m ? '1' : '0'); } catch (e) {}
+  }
+  function isMuted() { return muted; }
+  try { muted = localStorage.getItem('apex3d.muted') === '1'; } catch (e) {}
+  return { start, update, stop, setMuted, isMuted };
 })();
 
 // ---------- rain and spray ----------
@@ -1066,6 +1077,7 @@ const KEY = { ArrowUp: 'gas', KeyW: 'gas', ArrowDown: 'brake', KeyS: 'brake',
 addEventListener('keydown', (e) => {
   if (e.code === 'KeyR') return begin();
   if (e.code === 'KeyC') { camMode = camMode ? 0 : 1; return; }   // cockpit <-> chase
+  if (e.code === 'KeyM') { Audio.setMuted(!Audio.isMuted()); paintMute(); return; }
   if (e.code === 'Space' && !$('panel').hidden) { e.preventDefault(); return $('go').click(); }
   const k = KEY[e.code];
   if (k) { keys[k] = true; e.preventDefault(); }
@@ -1082,6 +1094,17 @@ for (const [id, k] of [['p-gas', 'gas'], ['p-brake', 'brake'], ['p-left', 'left'
   el.addEventListener('pointerup', off);
   el.addEventListener('pointerleave', off);
 }
+function paintMute() {
+  const b = $('mute');
+  if (b) b.setAttribute('aria-pressed', String(Audio.isMuted()));
+}
+$('mute').addEventListener('click', (e) => {
+  e.preventDefault();
+  Audio.setMuted(!Audio.isMuted());
+  paintMute();
+});
+paintMute();
+
 $('go').addEventListener('click', begin);
 
 // ---------- boot ----------

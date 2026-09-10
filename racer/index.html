@@ -29,6 +29,9 @@
         <div class="tile speed"><strong id="kph">0</strong><span>KPH</span></div>
         <div class="split" id="split"></div>
       </div>
+      <button class="mute" id="mute" title="Mute (M)" aria-pressed="false">
+        <span class="on">🔊</span><span class="off">🔇</span>
+      </button>
       <div class="hud-br"><div class="dial"><canvas id="tacho" width="220" height="220"></canvas>
         <div class="readout"><em id="gear">1</em></div></div></div>
       <div class="pedals" aria-hidden="true">
@@ -44,11 +47,12 @@
         <p class="eyebrow" id="p-eyebrow">Circuit 01 · Shibuya, 2am, raining</p>
         <h1 id="p-title">Apex<span>.</span></h1>
         <p id="p-text">Sound on. Three laps through the neon. Hold <b>SPACE</b> into a corner to kick the back out — point it where you want to go and stay on the throttle.</p>
-        <div class="keys keys5" id="p-keys">
+        <div class="keys keys6" id="p-keys">
           <div><b>↑ / W</b><span>throttle</span></div>
           <div><b>↓ / S</b><span>brake</span></div>
           <div><b>← →</b><span>steer</span></div>
           <div><b>C</b><span>camera</span></div>
+          <div><b>M</b><span>mute</span></div>
           <div><b>SPACE</b><span>drift</span></div>
         </div>
         <button class="go" id="go">Start race <span aria-hidden="true">→</span></button>

@@ -11,6 +11,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
+import { AfterimagePass } from 'three/addons/postprocessing/AfterimagePass.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -23,7 +24,7 @@ const ACCEL = 15, BRAKE = -38, DRAG = -5, OFF_DRAG = -26, OFF_MAX = 26;
 const STEER_RATE = 9;
 const DRIFT_YAW = 1.05;      // extra rotation the back end gives you on the handbrake
 
-let scene, camera, renderer, composer, bloom, envMap;
+let scene, camera, renderer, composer, bloom, trail, envMap;
 let curve, curveLen, roadMesh;
 let car, rivals = [], cockpit = null, camMode = 0;   // 0 = cockpit
 let dist = 0, lat = 0, speed = 0, steer = 0, yaw = 0, slip = 0, keys = {};
@@ -294,6 +295,63 @@ function buildCircuit() {
     scene.add(bar);
   }
 
+  // ---------- pit straight: grandstand, pit buildings, crowd ----------
+  // Placed by walking forward from the line, so they line the main straight
+  // instead of landing wherever a random segment happened to be.
+  const conc = new THREE.MeshStandardMaterial({ color: 0x232436, roughness: 0.9, metalness: 0.06 });
+  const glassMat = new THREE.MeshStandardMaterial({
+    color: 0x18324a, roughness: 0.12, metalness: 0.85, envMapIntensity: 1.5 });
+
+  const standStart = 12, standLen = 150;
+  const crowdGeo = new THREE.BoxGeometry(0.5, 0.62, 0.5);
+  const crowdMats = [0xe8e2d8, 0x2b3a55, 0xa8324a, 0x2f6b4a, 0xd8a03a]
+    .map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.95 }));
+  const crowds = crowdMats.map((mm) => new THREE.InstancedMesh(crowdGeo, mm, 900));
+  const crowdN = crowdMats.map(() => 0);
+
+  for (let i = standStart; i < standStart + standLen; i += 5) {
+    const p = pts[i], nn = normals[i], tt = tangents[i];
+    q.setFromUnitVectors(new THREE.Vector3(0, 0, 1), tt);
+
+    // grandstand on the left: stepped tiers
+    for (let tier = 0; tier < 6; tier++) {
+      const outw = ROAD_W + 8 + tier * 2.1;
+      const y = p.y + 1.2 + tier * 1.5;
+      const step = new THREE.Mesh(new THREE.BoxGeometry(2.1, 1.5, 5.2), conc);
+      step.position.copy(p.clone().addScaledVector(nn, outw)).setY(y);
+      step.quaternion.copy(q); step.receiveShadow = true; scene.add(step);
+      for (let c = 0; c < 4; c++) {                       // people on the tier
+        if (Math.random() < 0.25) continue;
+        const ci = Math.floor(Math.random() * crowdMats.length);
+        if (crowdN[ci] >= 900) continue;
+        const at = p.clone().addScaledVector(nn, outw + (Math.random() - 0.5) * 1.4)
+          .addScaledVector(tt, (c - 1.5) * 1.25).setY(y + 1.06);
+        m.compose(at, q, new THREE.Vector3(1, 0.85 + Math.random() * 0.3, 1));
+        crowds[ci].setMatrixAt(crowdN[ci]++, m);
+      }
+    }
+    // roof over the stand
+    if (i % 25 === standStart % 25) {
+      const roof = new THREE.Mesh(new THREE.BoxGeometry(15, 0.5, 25), conc);
+      roof.position.copy(p.clone().addScaledVector(nn, ROAD_W + 15)).setY(p.y + 12.5);
+      roof.quaternion.copy(q); scene.add(roof);
+    }
+
+    // pit building on the right, with a glazed upper deck
+    const pit = new THREE.Mesh(new THREE.BoxGeometry(9, 7, 5.2), conc);
+    pit.position.copy(p.clone().addScaledVector(nn, -(ROAD_W + 9))).setY(p.y + 3.5);
+    pit.quaternion.copy(q); pit.receiveShadow = true; scene.add(pit);
+    const deck = new THREE.Mesh(new THREE.BoxGeometry(9.2, 2.2, 5.3), glassMat);
+    deck.position.copy(p.clone().addScaledVector(nn, -(ROAD_W + 9))).setY(p.y + 8.2);
+    deck.quaternion.copy(q); scene.add(deck);
+    // garage opening facing the track
+    const bay = new THREE.Mesh(new THREE.BoxGeometry(0.3, 3.4, 3.6),
+      new THREE.MeshBasicMaterial({ color: NEON[(i / 5) % NEON.length] }));
+    bay.position.copy(p.clone().addScaledVector(nn, -(ROAD_W + 4.6))).setY(p.y + 1.9);
+    bay.quaternion.copy(q); scene.add(bay);
+  }
+  crowds.forEach((cm, i) => { cm.count = crowdN[i]; cm.instanceMatrix.needsUpdate = true; scene.add(cm); });
+
   // start/finish gantry
   const g0 = curve.getPointAt(0), n0 = normals[0], t0 = tangents[0];
   const gant = new THREE.Group();
@@ -311,38 +369,111 @@ function buildCircuit() {
 }
 
 // ---------- cars ----------
-function buildCar(colour, accent) {
+function buildCar(colour, accent, isPlayer = false) {
   const g = new THREE.Group();
-  const body = new THREE.MeshStandardMaterial({
-    color: colour, roughness: 0.24, metalness: 0.72, envMapIntensity: 1.5 });
-  const dark = new THREE.MeshStandardMaterial({ color: 0x14181f, roughness: 0.5, metalness: 0.5 });
+  const paint = new THREE.MeshStandardMaterial({
+    color: colour, roughness: 0.20, metalness: 0.78, envMapIntensity: 1.6 });
+  const carbon = new THREE.MeshStandardMaterial({ color: 0x0e1116, roughness: 0.42, metalness: 0.62 });
   const trim = new THREE.MeshStandardMaterial({
-    color: accent, roughness: 0.3, metalness: 0.4,
-    emissive: accent, emissiveIntensity: 0.35 });
+    color: accent, roughness: 0.28, metalness: 0.45, emissive: accent, emissiveIntensity: 0.45 });
+  const rubber = new THREE.MeshStandardMaterial({ color: 0x0b0d11, roughness: 0.94, metalness: 0.02 });
+  const chrome = new THREE.MeshStandardMaterial({ color: 0xc8ccd4, roughness: 0.16, metalness: 0.95 });
 
-  const add = (geo, mat, x, y, z, ry = 0) => {
-    const m = new THREE.Mesh(geo, mat);
-    m.position.set(x, y, z); m.rotation.y = ry;
-    m.castShadow = true; g.add(m); return m;
+  const put = (mesh, x, y, z, rx = 0, ry = 0, rz = 0) => {
+    mesh.position.set(x, y, z); mesh.rotation.set(rx, ry, rz);
+    mesh.castShadow = true; g.add(mesh); return mesh;
   };
-  add(new THREE.BoxGeometry(1.5, 0.42, 4.4), body, 0, 0.55, 0);          // tub
-  add(new THREE.BoxGeometry(0.75, 0.34, 2.0), body, 0, 0.62, -2.6);      // nose
-  add(new THREE.BoxGeometry(2.9, 0.12, 0.75), trim, 0, 0.30, -3.5);      // front wing
-  add(new THREE.BoxGeometry(2.4, 0.10, 0.5), trim, 0, 0.44, -3.5);
-  add(new THREE.BoxGeometry(2.2, 0.5, 1.9), body, 0, 0.5, 0.5);          // sidepods
-  add(new THREE.BoxGeometry(0.9, 0.72, 1.5), body, 0, 0.95, 1.35);       // airbox
-  add(new THREE.BoxGeometry(2.3, 0.62, 0.16), trim, 0, 1.32, 2.35);      // rear wing
-  add(new THREE.BoxGeometry(2.3, 0.12, 0.7), body, 0, 1.02, 2.3);
-  add(new THREE.BoxGeometry(0.62, 0.3, 0.62), dark, 0, 0.95, -0.55);     // cockpit
-  const halo = new THREE.Mesh(new THREE.TorusGeometry(0.52, 0.055, 6, 14, Math.PI), dark);
-  halo.position.set(0, 1.06, -0.5); halo.rotation.x = Math.PI / 2; g.add(halo);
 
-  const tyre = new THREE.CylinderGeometry(0.62, 0.62, 0.52, 14);
-  const tm = new THREE.MeshLambertMaterial({ color: 0x0d1014 });
-  for (const [x, z] of [[-0.95, -2.3], [0.95, -2.3], [-1.05, 1.9], [1.05, 1.9]]) {
-    const w = new THREE.Mesh(tyre, tm);
-    w.position.set(x, 0.62, z); w.rotation.z = Math.PI / 2; g.add(w);
+  // Tub: a capsule, so the body has a rounded section instead of a slab side.
+  const tub = new THREE.Mesh(new THREE.CapsuleGeometry(0.42, 2.4, 6, 14), paint);
+  put(tub, 0, 0.58, 0.1, Math.PI / 2);
+
+  // Nose cone, tapered with a lathe rather than a box.
+  const noseProfile = [];
+  for (let i = 0; i <= 8; i++) {
+    const u = i / 8;
+    noseProfile.push(new THREE.Vector2(0.06 + Math.pow(1 - u, 1.5) * 0.32, u * 2.0));
   }
+  const nose = new THREE.Mesh(new THREE.LatheGeometry(noseProfile, 14), paint);
+  put(nose, 0, 0.58, -1.55, Math.PI / 2);
+
+  // Wings, bevelled so the edges catch light.
+  const wingShape = new THREE.Shape();
+  wingShape.moveTo(-1.5, 0); wingShape.lineTo(1.5, 0);
+  wingShape.lineTo(1.5, 0.07); wingShape.lineTo(-1.5, 0.07); wingShape.closePath();
+  const wingGeo = new THREE.ExtrudeGeometry(wingShape, {
+    depth: 0.55, bevelEnabled: true, bevelThickness: 0.02, bevelSize: 0.03, bevelSegments: 2 });
+  put(new THREE.Mesh(wingGeo, trim), 0, 0.20, -3.55, -0.16);
+  const rw = new THREE.Mesh(wingGeo, trim);
+  rw.scale.set(0.78, 1, 1.1);
+  put(rw, 0, 1.34, 2.32, 0.22);
+  put(new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.62, 0.42), carbon), -0.86, 1.05, 2.3);
+  put(new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.62, 0.42), carbon), 0.86, 1.05, 2.3);
+
+  // Sidepods with a swept inlet.
+  for (const s of [-1, 1]) {
+    const pod = new THREE.Mesh(new THREE.CapsuleGeometry(0.34, 1.5, 5, 12), paint);
+    put(pod, s * 0.82, 0.5, 0.55, Math.PI / 2, 0, s * 0.06);
+    put(new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.42, 0.5), carbon), s * 1.06, 0.56, -0.35);
+  }
+
+  // Engine cover tapering into the airbox.
+  const cover = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.42, 1.7, 12), paint);
+  put(cover, 0, 0.86, 1.35, Math.PI / 2 + 0.06);
+  const airbox = new THREE.Mesh(new THREE.SphereGeometry(0.26, 12, 10, 0, Math.PI * 2, 0, Math.PI / 2), carbon);
+  put(airbox, 0, 1.06, 0.55, -0.25);
+
+  // Halo and cockpit surround.
+  const halo = new THREE.Mesh(new THREE.TorusGeometry(0.46, 0.05, 8, 20, Math.PI * 1.2), carbon);
+  put(halo, 0, 1.0, -0.5, Math.PI / 2, 0, Math.PI);
+  put(new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.55), carbon), 0, 1.0, -0.86);
+
+  // Driver: helmet and shoulders, so there is somebody in there.
+  const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.23, 14, 12), new THREE.MeshStandardMaterial({
+    color: 0xf2f3f6, roughness: 0.22, metalness: 0.3 }));
+  put(helmet, 0, 1.02, -0.28);
+  const visor = new THREE.Mesh(new THREE.SphereGeometry(0.235, 14, 10, 0, Math.PI, 1.1, 0.7),
+    new THREE.MeshStandardMaterial({ color: 0x16202c, roughness: 0.08, metalness: 0.9 }));
+  put(visor, 0, 1.02, -0.28, 0, Math.PI);
+  put(new THREE.Mesh(new THREE.CapsuleGeometry(0.17, 0.34, 4, 10), carbon), 0, 0.86, -0.05, 0, 0, Math.PI / 2);
+
+  // Wheels with rims, and visible suspension arms.
+  const tyre = new THREE.Mesh(new THREE.CylinderGeometry(0.66, 0.66, 0.56, 20), rubber);
+  const rim = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.58, 16), chrome);
+  for (const [x, z, front] of [[-1.02, -2.3, 1], [1.02, -2.3, 1], [-1.08, 2.0, 0], [1.08, 2.0, 0]]) {
+    const w = tyre.clone(); put(w, x, 0.66, z, 0, 0, Math.PI / 2);
+    const r = rim.clone(); put(r, x, 0.66, z, 0, 0, Math.PI / 2);
+    const sgn = Math.sign(x);
+    for (const dy of [-0.16, 0.2]) {                       // wishbones
+      const arm = new THREE.Mesh(new THREE.BoxGeometry(Math.abs(x) - 0.42, 0.055, 0.055), carbon);
+      put(arm, x - sgn * (Math.abs(x) - 0.42) / 2, 0.66 + dy, z + (front ? 0.16 : -0.16), 0, sgn * 0.16);
+    }
+  }
+
+  // Lights.
+  if (isPlayer) {
+    for (const s of [-1, 1]) {
+      const beam = new THREE.SpotLight(0xfff0d0, 24, 120, 0.52, 0.45, 1.4);
+      beam.position.set(s * 0.3, 0.66, -2.9);
+      beam.target.position.set(s * 0.3, 0.0, -40);
+      g.add(beam); g.add(beam.target);
+      put(new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 8),
+        new THREE.MeshBasicMaterial({ color: 0xfff4dc })), s * 0.3, 0.62, -2.92);
+    }
+  }
+  const tail = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.12, 0.06),
+    new THREE.MeshBasicMaterial({ color: 0xff2418 }));
+  put(tail, 0, 0.82, 2.5);
+  g.userData.tail = tail;
+  // Only the player carries a real light. Six point lights plus two spots would
+  // push the shader past a sensible budget for no visible gain — the rivals'
+  // emissive panels already read as lights once bloom hits them.
+  if (isPlayer) {
+    const glow = new THREE.PointLight(0xff2418, 2.4, 16, 2);
+    glow.position.set(0, 0.82, 2.7); g.add(glow);
+    g.userData.glow = glow;
+  }
+
   return g;
 }
 
@@ -463,6 +594,78 @@ const Audio = (() => {
   return { start, update, stop };
 })();
 
+// ---------- rain and spray ----------
+// Rain is a block of streaks that follows the camera, so a few thousand lines
+// cover the whole world. Spray is a cloud of points that gets kicked up behind
+// whichever car is throwing water at you.
+let rain = null, spray = null, sprayVel = null;
+
+function buildWeather() {
+  const N = 2600, pos = new Float32Array(N * 6);
+  for (let i = 0; i < N; i++) {
+    const x = (Math.random() - 0.5) * 150, y = Math.random() * 60, z = (Math.random() - 0.5) * 150;
+    const len = 1.4 + Math.random() * 2.2;
+    pos.set([x, y, z, x + 0.1, y - len, z + 0.35], i * 6);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  rain = new THREE.LineSegments(g, new THREE.LineBasicMaterial({
+    color: 0xbcd4ff, transparent: true, opacity: 0.34, fog: false }));
+  rain.frustumCulled = false;
+  scene.add(rain);
+
+  const S = 700, sp = new Float32Array(S * 3);
+  sprayVel = new Float32Array(S * 3);
+  for (let i = 0; i < S; i++) sp.set([0, -999, 0], i * 3);
+  const sg = new THREE.BufferGeometry();
+  sg.setAttribute('position', new THREE.BufferAttribute(sp, 3));
+  spray = new THREE.Points(sg, new THREE.PointsMaterial({
+    color: 0xdfe8ff, size: 0.5, transparent: true, opacity: 0.5,
+    depthWrite: false, blending: THREE.AdditiveBlending }));
+  spray.frustumCulled = false;
+  scene.add(spray);
+}
+
+let sprayNext = 0;
+function updateWeather(dt) {
+  if (!rain) return;
+  // Move the rain volume with the camera and slide it down; the streaks lean
+  // backwards as you go faster, which is most of the sense of driving into it.
+  rain.position.set(camera.position.x, camera.position.y - 26, camera.position.z);
+  rain.rotation.z = -(speed / MAX_SPEED) * 0.5;
+  const rp = rain.geometry.attributes.position, arr = rp.array;
+  const fall = 78 * dt;
+  for (let i = 0; i < arr.length; i += 6) {
+    arr[i + 1] -= fall; arr[i + 4] -= fall;
+    if (arr[i + 4] < 0) { const up = 58 + Math.random() * 6; arr[i + 1] += up; arr[i + 4] += up; }
+  }
+  rp.needsUpdate = true;
+
+  // spray thrown up by the cars in front of you
+  const sp = spray.geometry.attributes.position, sa = sp.array;
+  for (let i = 0; i < sa.length; i += 3) {
+    if (sa[i + 1] < -900) continue;
+    sa[i] += sprayVel[i] * dt; sa[i + 1] += sprayVel[i + 1] * dt; sa[i + 2] += sprayVel[i + 2] * dt;
+    sprayVel[i + 1] -= 14 * dt;
+    if (sa[i + 1] < -1) sa[i + 1] = -999;
+  }
+  for (const r of rivals) {
+    const ahead = ((r.d - dist + curveLen) % curveLen);
+    if (ahead > 90 || r.speed < 20) continue;
+    for (let k = 0; k < 3; k++) {
+      const i = (sprayNext = (sprayNext + 1) % (sa.length / 3)) * 3;
+      const back = new THREE.Vector3(0, 0, 1).applyQuaternion(r.obj.quaternion);
+      sa[i] = r.obj.position.x + back.x * 2.6 + (Math.random() - 0.5);
+      sa[i + 1] = r.obj.position.y + 0.4;
+      sa[i + 2] = r.obj.position.z + back.z * 2.6 + (Math.random() - 0.5);
+      sprayVel[i] = back.x * 9 + (Math.random() - 0.5) * 5;
+      sprayVel[i + 1] = 5 + Math.random() * 5;
+      sprayVel[i + 2] = back.z * 9 + (Math.random() - 0.5) * 5;
+    }
+  }
+  sp.needsUpdate = true;
+}
+
 // ---------- cockpit ----------
 // Parented to the camera, so it stays locked to your eyeline exactly the way a
 // real car does. This is what turns "watching a car" into "driving one".
@@ -545,6 +748,10 @@ function init() {
     composer.addPass(new RenderPass(scene, camera));
     bloom = new UnrealBloomPass(new THREE.Vector2(1024, 576), 1.15, 0.62, 0.62);
     composer.addPass(bloom);
+    // Motion trail. Held near zero at low speed so the picture stays crisp, then
+    // opened up as you get quick — this is the smear at the edge of vision.
+    trail = new AfterimagePass(0.72);
+    composer.addPass(trail);
     composer.addPass(new SMAAPass(1024, 576));
   } catch (e) {
     // If post-processing is unavailable, draw straight to the screen rather
@@ -596,8 +803,9 @@ function init() {
   }
 
   buildCircuit();
+  buildWeather();
 
-  car = buildCar(0x1f6f5c, 0x2fe0b0);
+  car = buildCar(0x1f6f5c, 0x2fe0b0, true);
   scene.add(car);
   cockpit = buildCockpit();
   camera.add(cockpit);
@@ -668,6 +876,10 @@ function syncWorld(dt) {
     camera.lookAt(car.position.x, car.position.y + 1.1, car.position.z);
   }
   if (wheelMesh) wheelMesh.rotation.z = -steer * 1.5;
+  // brake lights
+  const braking = keys.brake ? 1 : 0;
+  if (car.userData.tail) car.userData.tail.material.color.setHex(braking ? 0xff5a4a : 0xff2418);
+  if (car.userData.glow) car.userData.glow.intensity = braking ? 6.5 : 2.4;
 }
 
 function step(dt) {
@@ -736,6 +948,7 @@ function step(dt) {
     }
   }
   syncWorld(dt);
+  updateWeather(dt);
 }
 
 function position() {
@@ -786,7 +999,9 @@ function showSplit(t) {
 // ---------- loop ----------
 function renderFrame() {
   // Bloom rises with speed, so the lights smear as you get quicker.
-  if (bloom) bloom.strength = 0.95 + (speed / MAX_SPEED) * 0.75;
+  const vv = speed / MAX_SPEED;
+  if (bloom) bloom.strength = 0.95 + vv * 0.75;
+  if (trail) trail.uniforms.damp.value = 0.55 + Math.pow(vv, 2) * 0.33;
   if (composer) composer.render();
   else renderer.render(scene, camera);
 }

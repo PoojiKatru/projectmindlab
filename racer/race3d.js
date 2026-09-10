@@ -20,8 +20,8 @@ const STEER_RATE = 9;         // metres of lateral travel per second at full loc
 
 let scene, camera, renderer, clock;
 let curve, curveLen, roadMesh;
-let car, rivals = [], camMode = 0;
-let dist = 0, lat = 0, speed = 0, steer = 0, keys = {};
+let car, rivals = [], cockpit = null, camMode = 0;   // 0 = cockpit
+let dist = 0, lat = 0, speed = 0, steer = 0, yaw = 0, keys = {};
 let running = false, started = false, over = false;
 let lap = 1, lapTime = 0, best = null, splitT = 0, raf = null, loopId = 0;
 let fpsT = 0, fpsN = 0;
@@ -41,6 +41,72 @@ function fail(where, err) {
   console.error('[apex3d]', msg, err);
 }
 addEventListener('error', (e) => fail('load', e.error || e.message));
+
+// ---------- procedural textures ----------
+// Flat colour is what makes a low-poly scene read as a toy. Noise, a lane line
+// and kerb stripes cost nothing and do most of the work.
+function canvasTex(w, h, draw, rx = 1, ry = 1) {
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  draw(c.getContext('2d'), w, h);
+  const tx = new THREE.CanvasTexture(c);
+  tx.wrapS = tx.wrapT = THREE.RepeatWrapping;
+  tx.repeat.set(rx, ry);
+  tx.anisotropy = 8;
+  return tx;
+}
+
+function asphaltTex() {
+  return canvasTex(256, 256, (g, w, h) => {
+    g.fillStyle = '#3a3d43'; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 9000; i++) {                       // aggregate
+      const v = 30 + Math.random() * 45;
+      g.fillStyle = `rgba(${v},${v},${v + 4},${0.25 + Math.random() * 0.5})`;
+      g.fillRect(Math.random() * w, Math.random() * h, 1.6, 1.6);
+    }
+    g.strokeStyle = 'rgba(255,255,255,.16)'; g.lineWidth = 2;   // faint seams
+    for (let y = 0; y < h; y += 64) { g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke(); }
+    g.fillStyle = 'rgba(240,240,240,.85)';                     // centre line
+    g.fillRect(w / 2 - 3, 0, 6, h * 0.45);
+    g.fillStyle = 'rgba(255,255,255,.9)';                      // white edges
+    g.fillRect(3, 0, 5, h); g.fillRect(w - 8, 0, 5, h);
+  });
+}
+
+function grassTex(rx, ry) {
+  return canvasTex(128, 128, (g, w, h) => {
+    g.fillStyle = '#4e7c3d'; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 5000; i++) {
+      const v = Math.random();
+      g.fillStyle = v < 0.5 ? 'rgba(60,105,48,.55)' : 'rgba(110,150,78,.45)';
+      g.fillRect(Math.random() * w, Math.random() * h, 2, 3);
+    }
+  }, rx, ry);
+}
+
+function kerbTex() {
+  return canvasTex(64, 64, (g, w, h) => {
+    for (let i = 0; i < 4; i++) {
+      g.fillStyle = i % 2 ? '#e8e8e8' : '#cf3126';
+      g.fillRect(0, i * (h / 4), w, h / 4);
+    }
+  }, 1, 1);
+}
+
+function skyDome() {
+  const tx = canvasTex(8, 256, (g, w, h) => {
+    const grd = g.createLinearGradient(0, 0, 0, h);
+    grd.addColorStop(0.00, '#2a5c9c');
+    grd.addColorStop(0.42, '#7fb0dd');
+    grd.addColorStop(0.72, '#bcd8ee');
+    grd.addColorStop(1.00, '#dce9f2');
+    g.fillStyle = grd; g.fillRect(0, 0, w, h);
+  });
+  const m = new THREE.Mesh(
+    new THREE.SphereGeometry(1700, 24, 16),
+    new THREE.MeshBasicMaterial({ map: tx, side: THREE.BackSide, fog: false }));
+  return m;
+}
 
 // ---------- circuit ----------
 // Control points of a closed circuit, with real elevation change: a downhill
@@ -67,48 +133,51 @@ function buildCircuit() {
   }
 
   // road + kerbs + verge as one ribbon set
-  const road = [], kerbL = [], kerbR = [], verge = [];
+  const road = [], kerbL = [], kerbR = [], verge = [], uv = [];
   const push = (arr, v) => arr.push(v.x, v.y, v.z);
   for (let i = 0; i <= N; i++) {
     const p = pts[i], n = normals[i];
     const l = p.clone().addScaledVector(n, ROAD_W), r = p.clone().addScaledVector(n, -ROAD_W);
     push(road, l); push(road, r);
+    uv.push(0, i * 0.35, 1, i * 0.35);
     push(kerbL, l); push(kerbL, l.clone().addScaledVector(n, 2.4));
     push(kerbR, r.clone().addScaledVector(n, -2.4)); push(kerbR, r);
     push(verge, l.clone().addScaledVector(n, 2.4).setY(p.y - 0.15));
     push(verge, r.clone().addScaledVector(n, -2.4).setY(p.y - 0.15));
   }
 
-  const ribbon = (flat, colour, extra = {}) => {
+  // Surface normals are written explicitly as the true road normal (tangent
+  // crossed with the lateral). Letting computeVertexNormals guess produced
+  // downward normals on this winding, which rendered the tarmac black and let
+  // back-face culling cut holes in it.
+  const ribbon = (flat, mat) => {
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(flat, 3));
+    const nrm = [];
+    for (let i = 0; i <= N; i++) {
+      const up = new THREE.Vector3().crossVectors(normals[i], tangents[i]).normalize();
+      if (up.y < 0) up.negate();
+      nrm.push(up.x, up.y, up.z, up.x, up.y, up.z);
+    }
+    g.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3));
     const idx = [];
     for (let i = 0; i < N; i++) {
       const a = i * 2, b = a + 1, c = a + 2, d = a + 3;
       idx.push(a, b, c, b, d, c);
     }
-    g.setIndex(idx); g.computeVertexNormals();
-    return new THREE.Mesh(g, new THREE.MeshLambertMaterial({ color: colour, ...extra }));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    g.setIndex(idx);
+    return new THREE.Mesh(g, mat);
   };
 
-  roadMesh = ribbon(road, 0x33363c);
+  roadMesh = ribbon(road, new THREE.MeshLambertMaterial({
+    color: 0xffffff, map: asphaltTex(), side: THREE.DoubleSide }));
   scene.add(roadMesh);
 
-  // kerbs get alternating red/white by splitting into short runs
-  for (const [flat, side] of [[kerbL, 1], [kerbR, -1]]) {
-    for (let i = 0; i < N; i += 6) {
-      const g = new THREE.BufferGeometry(), sub = [];
-      const end = Math.min(N, i + 6);
-      for (let j = i; j <= end; j++) sub.push(...flat.slice(j * 6, j * 6 + 6));
-      g.setAttribute('position', new THREE.Float32BufferAttribute(sub, 3));
-      const idx = [];
-      for (let j = 0; j < end - i; j++) { const a = j * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
-      g.setIndex(idx); g.computeVertexNormals();
-      scene.add(new THREE.Mesh(g, new THREE.MeshLambertMaterial({
-        color: (i / 6) % 2 ? 0xdedede : 0xd2372c, side: THREE.DoubleSide })));
-    }
-  }
-  scene.add(ribbon(verge, 0x4a7a3e, { side: THREE.DoubleSide }));
+  const kerbMat = new THREE.MeshLambertMaterial({ color: 0xffffff, map: kerbTex(), side: THREE.DoubleSide });
+  for (const flat of [kerbL, kerbR]) scene.add(ribbon(flat, kerbMat));
+  scene.add(ribbon(verge, new THREE.MeshLambertMaterial({
+    color: 0xffffff, map: grassTex(6, 40), side: THREE.DoubleSide })));
 
   // armco barriers + advertising boards on the outside of the lap
   const barGeo = new THREE.BoxGeometry(1, 1.1, 1);
@@ -205,7 +274,7 @@ function buildCar(colour, accent) {
 
 // place a car on the circuit from (distance, lateral offset)
 const _p = new THREE.Vector3(), _t = new THREE.Vector3(), _n = new THREE.Vector3();
-function placeOnTrack(obj, d, offset, bank = 0) {
+function placeOnTrack(obj, d, offset, yaw = 0, bank = 0) {
   const u = ((d % curveLen) + curveLen) % curveLen / curveLen;
   curve.getPointAt(u, _p);
   curve.getTangentAt(u, _t).normalize();
@@ -214,9 +283,14 @@ function placeOnTrack(obj, d, offset, bank = 0) {
   obj.position.y += 0.02;
   const look = obj.position.clone().add(_t);
   obj.lookAt(look);
-  obj.rotateY(Math.PI);              // models face -z
-  obj.rotation.z = bank;
-  return { p: _p, t: _t, n: _n };
+  // No half turn here: the models are built nose-first down -z, which is the
+  // same axis lookAt aligns, so adding PI pointed every car backwards.
+  if (yaw) obj.rotateY(yaw);         // where the nose actually points
+  if (bank) obj.rotateZ(bank);       // rotateZ, not rotation.z — assigning the
+                                     // euler would discard what lookAt wrote
+  // Return copies. These scratch vectors are overwritten by the next call, and
+  // the camera used to be built from a rival's frame because of it.
+  return { p: _p.clone(), t: _t.clone(), n: _n.clone() };
 }
 
 // curvature at a distance: how hard the corner is, signed
@@ -233,14 +307,70 @@ function curvatureAt(d) {
   return clamp(Math.asin(clamp(_c.y, -1, 1)) * 6, -3, 3);
 }
 
+// ---------- cockpit ----------
+// Parented to the camera, so it stays locked to your eyeline exactly the way a
+// real car does. This is what turns "watching a car" into "driving one".
+let wheelMesh = null;
+function buildCockpit() {
+  const g = new THREE.Group();
+  const carbon = new THREE.MeshLambertMaterial({ color: 0x15181e });
+  const body = new THREE.MeshLambertMaterial({ color: 0x1f6f5c });
+  const accent = new THREE.MeshLambertMaterial({ color: 0x2fe0b0 });
+
+  // nose stretching away in front of you
+  const nose = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.2, 2.6), body);
+  nose.position.set(0, -0.62, -2.15); g.add(nose);
+  const wingF = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.07, 0.42), accent);
+  wingF.position.set(0, -0.72, -3.35); g.add(wingF);
+
+  // front wheels in the corners of your vision
+  const tyre = new THREE.CylinderGeometry(0.34, 0.34, 0.3, 14);
+  const tm = new THREE.MeshLambertMaterial({ color: 0x0d1014 });
+  for (const s of [-1, 1]) {
+    const w = new THREE.Mesh(tyre, tm);
+    w.position.set(s * 0.78, -0.56, -1.65); w.rotation.z = Math.PI / 2; g.add(w);
+  }
+
+  // halo, exactly where it sits in your view in a modern car
+  const halo = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.035, 8, 22, Math.PI * 1.15), carbon);
+  halo.position.set(0, -0.02, -0.62); halo.rotation.x = Math.PI / 2; halo.rotation.z = Math.PI;
+  g.add(halo);
+  const strut = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.5), carbon);
+  strut.position.set(0, -0.06, -0.92); g.add(strut);
+
+  // cockpit sides
+  for (const s of [-1, 1]) {
+    const side = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.34, 1.5), body);
+    side.position.set(s * 0.42, -0.55, -0.9); g.add(side);
+    const mir = new THREE.Mesh(new THREE.BoxGeometry(0.19, 0.11, 0.05), carbon);
+    mir.position.set(s * 0.62, -0.3, -0.95); g.add(mir);
+  }
+
+  // steering wheel, which turns with your input
+  wheelMesh = new THREE.Group();
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.026, 8, 20), carbon);
+  wheelMesh.add(rim);
+  const bar = new THREE.Mesh(new THREE.BoxGeometry(0.31, 0.05, 0.03), carbon);
+  wheelMesh.add(bar);
+  const disp = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.05, 0.012),
+    new THREE.MeshBasicMaterial({ color: 0x39d98a }));
+  disp.position.set(0, 0.005, 0.02); wheelMesh.add(disp);
+  wheelMesh.position.set(0, -0.36, -0.52);
+  wheelMesh.rotation.x = -0.5;
+  g.add(wheelMesh);
+
+  g.renderOrder = 10;
+  return g;
+}
+
 // ---------- scene ----------
 function init() {
   const host = $('view');
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x9fc4e4);
-  scene.fog = new THREE.Fog(0x9fc4e4, 220, 620);
+  scene.fog = new THREE.Fog(0xbcd8ee, 260, 900);
 
-  camera = new THREE.PerspectiveCamera(64, 16 / 9, 0.5, 2200);
+  camera = new THREE.PerspectiveCamera(62, 16 / 9, 0.4, 2600);
+  scene.add(skyDome());
 
   renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(2, devicePixelRatio || 1));
@@ -256,7 +386,7 @@ function init() {
   // ground
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(4000, 4000),
-    new THREE.MeshLambertMaterial({ color: 0x4d7c3f }));
+    new THREE.MeshLambertMaterial({ color: 0xffffff, map: grassTex(160, 160) }));
   ground.rotation.x = -Math.PI / 2; ground.position.y = -14;
   scene.add(ground);
 
@@ -273,6 +403,9 @@ function init() {
 
   car = buildCar(0x1f6f5c, 0x2fe0b0);
   scene.add(car);
+  cockpit = buildCockpit();
+  camera.add(cockpit);
+  scene.add(camera);           // camera must be in the graph for its child to render
   const hues = [[0xc8342a, 0xf0a020], [0x1f4f8f, 0xffffff], [0xe0a01c, 0x202020],
                 [0x6b3a8f, 0xd0b0ff], [0x1d6b45, 0xa8f0c0]];
   for (let i = 0; i < FIELD; i++) {
@@ -297,42 +430,68 @@ function resize() {
 
 // ---------- simulation ----------
 function reset() {
-  dist = 0; lat = 0; speed = 0; steer = 0;
+  dist = 0; lat = 0; speed = 0; steer = 0; yaw = 0;
   lap = 1; lapTime = 0; over = false; started = false;
   rivals.forEach((r, i) => { r.d = (i + 1) * 34; r.lap = 1; r.prev = 0; });
   syncWorld(0);
 }
 
 function syncWorld(dt) {
-  const info = placeOnTrack(car, dist, lat, -steer * 0.05);
+  const info = placeOnTrack(car, dist, lat, yaw, -steer * 0.06);
   for (const r of rivals) placeOnTrack(r.obj, r.d, r.lat);
 
   // chase camera, or cockpit
   const u = ((dist % curveLen) + curveLen) % curveLen / curveLen;
   const ahead = curve.getPointAt((u + 0.012) % 1);
-  if (camMode === 0) {
-    const back = info.t.clone().multiplyScalar(-9.4);
-    const want = car.position.clone().add(back).add(new THREE.Vector3(0, 3.6, 0))
-      .addScaledVector(info.n, lat * -0.12);
-    camera.position.lerp(want, dt ? clamp(dt * 7, 0, 1) : 1);
-    camera.lookAt(ahead.x, ahead.y + 1.6, ahead.z);
-  } else {
-    const want = car.position.clone().addScaledVector(info.t, 0.2).add(new THREE.Vector3(0, 1.35, 0));
-    camera.position.copy(want);
-    camera.lookAt(ahead.x, ahead.y + 1.2, ahead.z);
+  const v = speed / MAX_SPEED;
+  // Field of view opens up with speed. It is the cheapest and most convincing
+  // sense of velocity there is.
+  const wantFov = (camMode === 0 ? 68 : 62) + v * 16;
+  if (Math.abs(camera.fov - wantFov) > 0.05) {
+    camera.fov += (wantFov - camera.fov) * (dt ? clamp(dt * 3, 0, 1) : 1);
+    camera.updateProjectionMatrix();
   }
+  const rough = (Math.abs(lat) > ROAD_W ? 0.06 : 0.012) * v;
+
+  if (camMode === 0) {
+    car.visible = false; cockpit.visible = true;
+    // Sit in the car and take its orientation, so the view swings with the nose
+    // instead of always facing down the track no matter which way you point.
+    camera.quaternion.copy(car.quaternion);
+    camera.position.copy(car.position).add(new THREE.Vector3(0, 1.12, 0));
+    camera.translateZ(0.35);
+    camera.position.x += (Math.random() - 0.5) * rough;
+    camera.position.y += (Math.random() - 0.5) * rough;
+    camera.rotateZ(-steer * 0.05);                  // leans as you turn
+  } else {
+    car.visible = true; cockpit.visible = false;
+    const back = new THREE.Vector3(0, 0, 1).applyQuaternion(car.quaternion);
+    const want = car.position.clone().addScaledVector(back, 8.6).add(new THREE.Vector3(0, 3.1, 0));
+    camera.position.lerp(want, dt ? clamp(dt * 6, 0, 1) : 1);
+    camera.lookAt(car.position.x, car.position.y + 1.1, car.position.z);
+  }
+  if (wheelMesh) wheelMesh.rotation.z = -steer * 1.5;
 }
 
 function step(dt) {
   const k = curvatureAt(dist);
   if (started && !over) {
-    steer = lerp(steer, (keys.left ? -1 : 0) + (keys.right ? 1 : 0), clamp(dt * 12, 0, 1));
-    const grip = 1 - (speed / MAX_SPEED) * 0.35;
-    lat += steer * STEER_RATE * grip * dt;
-    // Cornering force goes with speed squared, which is what makes braking for a
-    // corner the right move rather than a suggestion.
+    steer = lerp(steer, (keys.left ? -1 : 0) + (keys.right ? 1 : 0), clamp(dt * 10, 0, 1));
     const v = speed / MAX_SPEED;
-    lat += k * v * v * 3.2 * dt;
+
+    // Steering points the car; the car then travels where its nose points. The
+    // old model slid you sideways regardless of heading, which is why it felt
+    // like dragging a sprite rather than driving. Turn-in needs speed — a
+    // stationary car does not change direction, and grip falls away as you go
+    // faster, so you understeer if you ask too much.
+    const bite = clamp(speed / 26, 0, 1) * (1 - v * 0.34);
+    yaw += steer * bite * 1.9 * dt;
+    yaw -= yaw * dt * 2.4;                    // self-centres, as a real car does
+    // Cornering load goes with speed squared: that is what makes braking for a
+    // corner the right move rather than a suggestion.
+    yaw += k * v * v * 0.30 * dt;             // the corner pushes the nose wide
+    yaw = clamp(yaw, -0.62, 0.62);
+    lat += Math.sin(yaw) * speed * dt;
 
     if (keys.gas) speed += ACCEL * dt;
     else if (keys.brake) speed += BRAKE * dt;
@@ -343,7 +502,7 @@ function step(dt) {
     speed = clamp(speed, 0, MAX_SPEED);
 
     lapTime += dt;
-  } else if (over) speed = Math.max(0, speed + DRAG * 2 * dt);
+  } else if (over) { speed = Math.max(0, speed + DRAG * 2 * dt); yaw *= 0.94; }
 
   const prev = dist;
   dist += speed * dt;
@@ -479,7 +638,7 @@ const KEY = { ArrowUp: 'gas', KeyW: 'gas', ArrowDown: 'brake', KeyS: 'brake',
               ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right' };
 addEventListener('keydown', (e) => {
   if (e.code === 'KeyR') return begin();
-  if (e.code === 'KeyC') { camMode = camMode ? 0 : 1; return; }
+  if (e.code === 'KeyC') { camMode = camMode ? 0 : 1; return; }   // cockpit <-> chase
   const k = KEY[e.code];
   if (k) { keys[k] = true; e.preventDefault(); }
   else if (e.code === 'Space' && !$('panel').hidden) { e.preventDefault(); $('go').click(); }

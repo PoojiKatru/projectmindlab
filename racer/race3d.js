@@ -386,6 +386,83 @@ function curvatureAt(d) {
   return clamp(Math.asin(clamp(_c.y, -1, 1)) * 6, -3, 3);
 }
 
+// ---------- engine audio ----------
+// Synthesised, not sampled — there are no sound files here. Stacked sawtooths
+// an octave and a fifth apart give an engine its harmonic character; the
+// resonant filter opening with throttle is what makes it sound like it is
+// working rather than just droning.
+const Audio = (() => {
+  let ctx = null, master, engA, engB, engC, engGain, filt, windGain, squealGain;
+  let ready = false;
+
+  function noiseBuffer(c) {
+    const b = c.createBuffer(1, c.sampleRate * 2, c.sampleRate);
+    const d = b.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    return b;
+  }
+
+  function start() {
+    if (ready) { if (ctx.state === 'suspended') ctx.resume(); return; }
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    try {
+      ctx = new AC();
+      master = ctx.createGain(); master.gain.value = 0.26; master.connect(ctx.destination);
+
+      filt = ctx.createBiquadFilter();
+      filt.type = 'lowpass'; filt.frequency.value = 700; filt.Q.value = 7;
+      engGain = ctx.createGain(); engGain.gain.value = 0;
+      filt.connect(engGain); engGain.connect(master);
+
+      const mk = (type, detune) => {
+        const o = ctx.createOscillator();
+        o.type = type; o.frequency.value = 60; o.detune.value = detune;
+        o.connect(filt); o.start(); return o;
+      };
+      engA = mk('sawtooth', 0);
+      engB = mk('sawtooth', 7);        // slightly out, so it beats like a real engine
+      engC = mk('square', -1200);      // an octave down for weight
+
+      const wind = ctx.createBufferSource();
+      wind.buffer = noiseBuffer(ctx); wind.loop = true;
+      const wf = ctx.createBiquadFilter(); wf.type = 'highpass'; wf.frequency.value = 900;
+      windGain = ctx.createGain(); windGain.gain.value = 0;
+      wind.connect(wf); wf.connect(windGain); windGain.connect(master); wind.start();
+
+      const sq = ctx.createBufferSource();
+      sq.buffer = noiseBuffer(ctx); sq.loop = true;
+      const sf = ctx.createBiquadFilter(); sf.type = 'bandpass';
+      sf.frequency.value = 2400; sf.Q.value = 9;
+      squealGain = ctx.createGain(); squealGain.gain.value = 0;
+      sq.connect(sf); sf.connect(squealGain); squealGain.connect(master); sq.start();
+
+      ready = true;
+    } catch (e) { console.warn('[apex3d] audio unavailable', e); }
+  }
+
+  // rpm climbs through a gear then drops on the change, so you hear the shift
+  function update(v, throttle, slipAmt, offTrack) {
+    if (!ready) return;
+    const gears = 8;
+    const g = clamp(Math.floor(v * gears) + 1, 1, gears);   // floor, so revs drop on the shift
+    const inGear = clamp(v * gears - (g - 1), 0, 1);
+    const rpm = 0.28 + inGear * 0.72;
+    const f = 42 + rpm * 168;
+    const now = ctx.currentTime, k = 0.06;
+    engA.frequency.setTargetAtTime(f, now, k);
+    engB.frequency.setTargetAtTime(f * 1.5, now, k);
+    engC.frequency.setTargetAtTime(f * 0.5, now, k);
+    filt.frequency.setTargetAtTime(420 + rpm * 2600 + throttle * 900, now, k);
+    engGain.gain.setTargetAtTime(0.10 + rpm * 0.5 * (0.55 + throttle * 0.45), now, k);
+    windGain.gain.setTargetAtTime(v * v * 0.16, now, 0.12);
+    squealGain.gain.setTargetAtTime(Math.min(0.16, slipAmt * 0.22 + (offTrack ? 0.09 : 0)), now, 0.05);
+  }
+
+  function stop() { if (ready) { engGain.gain.value = 0; windGain.gain.value = 0; squealGain.gain.value = 0; } }
+  return { start, update, stop };
+})();
+
 // ---------- cockpit ----------
 // Parented to the camera, so it stays locked to your eyeline exactly the way a
 // real car does. This is what turns "watching a car" into "driving one".
@@ -689,7 +766,7 @@ function drawTacho(pct) {
 function hud(dt) {
   const pct = speed / MAX_SPEED;
   $('kph').textContent = Math.round(speed * 3.6);
-  $('gear').textContent = clamp(Math.ceil(pct * 8), 1, 8);
+  $('gear').textContent = clamp(Math.floor(pct * 8) + 1, 1, 8);
   $('lap').innerHTML = `${Math.min(lap, LAPS)}<i>/${LAPS}</i>`;
   const p = position();
   $('pos').textContent = p; $('posord').textContent = ord(p);
@@ -726,6 +803,8 @@ function startLoop() {
     last = ts;
     try {
       step(dt); renderFrame(); hud(dt);
+      Audio.update(speed / MAX_SPEED, keys.gas ? 1 : keys.brake ? 0 : 0.25,
+                   Math.abs(slip), Math.abs(lat) > ROAD_W);
       fpsN++; fpsT += dt;
       if (fpsT >= 0.5) { $('fps').textContent = Math.round(fpsN / fpsT); fpsN = 0; fpsT = 0; }
     } catch (err) { running = false; return fail('frame', err); }
@@ -749,13 +828,14 @@ function lights() {
 }
 
 function begin() {
+  Audio.start();                 // must follow a user gesture
   reset(); running = true;
   $('panel').hidden = true; $('hud').hidden = false;
   startLoop(); lights();
 }
 
 function finish() {
-  over = true; started = false;
+  over = true; started = false; Audio.stop();
   const p = position();
   $('p-eyebrow').textContent = 'Chequered flag';
   $('p-title').textContent = p === 1 ? 'Won it.' : `P${p}.`;

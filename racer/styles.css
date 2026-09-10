@@ -119,3 +119,11 @@ button{font:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .mute[aria-pressed="true"] .off{display:block}
 .mute[aria-pressed="true"]{opacity:.65}
 @media(hover:none){.mute{left:auto;right:14px;bottom:172px}}
+/* circuit picker */
+.tracks{display:flex;gap:8px;justify-content:center;margin:0 0 18px;flex-wrap:wrap}
+.tracks button{background:transparent;border:1px solid var(--line);color:var(--dim);
+  border-radius:4px;padding:9px 16px;font-size:13px;text-align:left;min-width:150px}
+.tracks button b{display:block;color:var(--ink);font-size:14px;font-weight:700}
+.tracks button small{font-size:11px;letter-spacing:.08em;text-transform:uppercase}
+.tracks button[aria-pressed="true"]{border-color:var(--accent);background:rgba(255,59,48,.12)}
+.tracks button[aria-pressed="true"] b{color:#fff}

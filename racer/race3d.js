@@ -16,12 +16,13 @@ const LAPS = 3;
 const FIELD = 5;
 const MAX_SPEED = 88;         // m/s ≈ 316 kph
 const ACCEL = 15, BRAKE = -38, DRAG = -5, OFF_DRAG = -26, OFF_MAX = 26;
-const STEER_RATE = 9;         // metres of lateral travel per second at full lock
+const STEER_RATE = 9;
+const DRIFT_YAW = 1.05;      // extra rotation the back end gives you on the handbrake
 
 let scene, camera, renderer, clock;
 let curve, curveLen, roadMesh;
 let car, rivals = [], cockpit = null, camMode = 0;   // 0 = cockpit
-let dist = 0, lat = 0, speed = 0, steer = 0, yaw = 0, keys = {};
+let dist = 0, lat = 0, speed = 0, steer = 0, yaw = 0, slip = 0, keys = {};
 let running = false, started = false, over = false;
 let lap = 1, lapTime = 0, best = null, splitT = 0, raf = null, loopId = 0;
 let fpsT = 0, fpsN = 0;
@@ -58,28 +59,37 @@ function canvasTex(w, h, draw, rx = 1, ry = 1) {
 
 function asphaltTex() {
   return canvasTex(256, 256, (g, w, h) => {
-    g.fillStyle = '#3a3d43'; g.fillRect(0, 0, w, h);
-    for (let i = 0; i < 9000; i++) {                       // aggregate
-      const v = 30 + Math.random() * 45;
-      g.fillStyle = `rgba(${v},${v},${v + 4},${0.25 + Math.random() * 0.5})`;
+    g.fillStyle = '#14141c'; g.fillRect(0, 0, w, h);
+    // wet sheen: long smears of reflected neon down the lane
+    for (let i = 0; i < 90; i++) {
+      const x = Math.random() * w, len = 20 + Math.random() * 90;
+      g.fillStyle = ['rgba(255,60,160,.05)', 'rgba(60,230,255,.05)', 'rgba(160,90,255,.05)'][i % 3];
+      g.fillRect(x, Math.random() * h, 3 + Math.random() * 5, len);
+    }
+    for (let i = 0; i < 7000; i++) {                       // aggregate
+      const v = 16 + Math.random() * 26;
+      g.fillStyle = `rgba(${v},${v},${v + 8},${0.3 + Math.random() * 0.5})`;
       g.fillRect(Math.random() * w, Math.random() * h, 1.6, 1.6);
     }
-    g.strokeStyle = 'rgba(255,255,255,.16)'; g.lineWidth = 2;   // faint seams
-    for (let y = 0; y < h; y += 64) { g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke(); }
-    g.fillStyle = 'rgba(240,240,240,.85)';                     // centre line
-    g.fillRect(w / 2 - 3, 0, 6, h * 0.45);
-    g.fillStyle = 'rgba(255,255,255,.9)';                      // white edges
+    g.fillStyle = 'rgba(255,240,210,.8)';                      // centre dashes
+    g.fillRect(w / 2 - 3, 0, 6, h * 0.42);
+    g.fillStyle = 'rgba(255,255,255,.65)';                     // edges
     g.fillRect(3, 0, 5, h); g.fillRect(w - 8, 0, 5, h);
   });
 }
 
+// Not grass any more — this is the wet concrete run-off either side of a city
+// street at night, picking up a little of the neon around it.
 function grassTex(rx, ry) {
   return canvasTex(128, 128, (g, w, h) => {
-    g.fillStyle = '#4e7c3d'; g.fillRect(0, 0, w, h);
-    for (let i = 0; i < 5000; i++) {
-      const v = Math.random();
-      g.fillStyle = v < 0.5 ? 'rgba(60,105,48,.55)' : 'rgba(110,150,78,.45)';
+    g.fillStyle = '#191a24'; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 3000; i++) {
+      g.fillStyle = Math.random() < 0.5 ? 'rgba(38,40,56,.6)' : 'rgba(70,60,95,.35)';
       g.fillRect(Math.random() * w, Math.random() * h, 2, 3);
+    }
+    for (let i = 0; i < 40; i++) {
+      g.fillStyle = ['rgba(255,60,160,.06)', 'rgba(60,230,255,.06)'][i % 2];
+      g.fillRect(Math.random() * w, Math.random() * h, 4, 22);
     }
   }, rx, ry);
 }
@@ -87,7 +97,7 @@ function grassTex(rx, ry) {
 function kerbTex() {
   return canvasTex(64, 64, (g, w, h) => {
     for (let i = 0; i < 4; i++) {
-      g.fillStyle = i % 2 ? '#e8e8e8' : '#cf3126';
+      g.fillStyle = i % 2 ? '#ff2fa0' : '#26e8ff';     // neon kerbing
       g.fillRect(0, i * (h / 4), w, h / 4);
     }
   }, 1, 1);
@@ -96,11 +106,16 @@ function kerbTex() {
 function skyDome() {
   const tx = canvasTex(8, 256, (g, w, h) => {
     const grd = g.createLinearGradient(0, 0, 0, h);
-    grd.addColorStop(0.00, '#2a5c9c');
-    grd.addColorStop(0.42, '#7fb0dd');
-    grd.addColorStop(0.72, '#bcd8ee');
-    grd.addColorStop(1.00, '#dce9f2');
+    grd.addColorStop(0.00, '#05030f');
+    grd.addColorStop(0.45, '#140a2c');
+    grd.addColorStop(0.78, '#3a1350');
+    grd.addColorStop(1.00, '#6b1f52');            // neon haze on the horizon
     g.fillStyle = grd; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 90; i++) {                // stars, thinning toward the glow
+      const y = Math.random() * h * 0.55;
+      g.fillStyle = `rgba(220,230,255,${(0.7 - y / h).toFixed(2)})`;
+      g.fillRect(Math.random() * w, y, 1, 1);
+    }
   });
   const m = new THREE.Mesh(
     new THREE.SphereGeometry(1700, 24, 16),
@@ -181,8 +196,8 @@ function buildCircuit() {
 
   // armco barriers + advertising boards on the outside of the lap
   const barGeo = new THREE.BoxGeometry(1, 1.1, 1);
-  const barMat = new THREE.MeshLambertMaterial({ color: 0xd8dade });
-  const adMat = [0xc8342a, 0x1f4f8f, 0x1d6b45].map((c) => new THREE.MeshLambertMaterial({ color: c }));
+  const barMat = new THREE.MeshLambertMaterial({ color: 0x2b2340, emissive: 0x2a0f3d });
+  const adMat = [0xff2fa0, 0x26e8ff, 0xb44cff].map((c) => new THREE.MeshBasicMaterial({ color: c }));
   const bars = new THREE.InstancedMesh(barGeo, barMat, Math.floor(N / 3) * 2 + 4);
   let bi = 0; const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3();
   for (let i = 0; i < N; i += 3) {
@@ -205,24 +220,49 @@ function buildCircuit() {
   bars.count = bi; bars.instanceMatrix.needsUpdate = true;
   scene.add(bars);
 
-  // trees behind the barriers
-  const trunk = new THREE.CylinderGeometry(0.35, 0.5, 3, 5);
-  const crown = new THREE.ConeGeometry(3.2, 11, 7);
-  const tMat = new THREE.MeshLambertMaterial({ color: 0x3a2a1c });
-  const cMat = new THREE.MeshLambertMaterial({ color: 0x1f5c2e });
-  const nTree = 260;
-  const tr = new THREE.InstancedMesh(trunk, tMat, nTree), cr = new THREE.InstancedMesh(crown, cMat, nTree);
-  for (let k = 0; k < nTree; k++) {
+  // City blocks pressed right up against the barriers, so the circuit runs
+  // through streets rather than past scenery.
+  const NEON = [0xff2fa0, 0x26e8ff, 0xb44cff, 0xffd23f, 0x3fff9e];
+  const blockMat = new THREE.MeshLambertMaterial({ color: 0x1b1730 });
+  const nBlocks = 150;
+  const blocks = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), blockMat, nBlocks);
+  const winMats = NEON.map((c) => new THREE.MeshBasicMaterial({ color: c, fog: true }));
+  const strips = NEON.map((c, i) => new THREE.InstancedMesh(
+    new THREE.BoxGeometry(1, 1, 1), winMats[i], 90));
+  const stripN = NEON.map(() => 0);
+
+  for (let bIdx = 0; bIdx < nBlocks; bIdx++) {
     const i = Math.floor(Math.random() * N), s = Math.random() < 0.5 ? 1 : -1;
-    const off = ROAD_W + 12 + Math.random() * 46;
+    const off = ROAD_W + 11 + Math.random() * 26;
     const p = pts[i].clone().addScaledVector(normals[i], s * off);
-    const h = 0.7 + Math.random() * 0.8;
-    m.compose(new THREE.Vector3(p.x, p.y + 1.5 * h, p.z), new THREE.Quaternion(), new THREE.Vector3(h, h, h));
-    tr.setMatrixAt(k, m);
-    m.compose(new THREE.Vector3(p.x, p.y + 8 * h, p.z), new THREE.Quaternion(), new THREE.Vector3(h, h, h));
-    cr.setMatrixAt(k, m);
+    const hgt = 16 + Math.random() * 62, wid = 12 + Math.random() * 16, dep = 12 + Math.random() * 20;
+    q.setFromUnitVectors(new THREE.Vector3(0, 0, 1), tangents[i]);
+    m.compose(new THREE.Vector3(p.x, p.y + hgt / 2, p.z), q, new THREE.Vector3(wid, hgt, dep));
+    blocks.setMatrixAt(bIdx, m);
+
+    // a vertical neon sign down the face that looks at the road
+    const ci = Math.floor(Math.random() * NEON.length);
+    if (stripN[ci] < 90) {
+      const sh = hgt * (0.3 + Math.random() * 0.45);
+      const at = p.clone().addScaledVector(normals[i], -s * (wid / 2 + 0.3));
+      m.compose(new THREE.Vector3(at.x, at.y + hgt * 0.55, at.z), q,
+                new THREE.Vector3(0.5, sh, 1.6 + Math.random() * 2.2));
+      strips[ci].setMatrixAt(stripN[ci]++, m);
+    }
   }
-  scene.add(tr); scene.add(cr);
+  blocks.instanceMatrix.needsUpdate = true;
+  scene.add(blocks);
+  strips.forEach((sm, i) => { sm.count = stripN[i]; sm.instanceMatrix.needsUpdate = true; scene.add(sm); });
+
+  // overhead neon gates every so often, straddling the street
+  for (let i = 0; i < N; i += 90) {
+    const p = pts[i], nn = normals[i];
+    const bar = new THREE.Mesh(new THREE.BoxGeometry((ROAD_W + 6) * 2, 0.7, 0.7),
+      new THREE.MeshBasicMaterial({ color: NEON[(i / 90) % NEON.length] }));
+    bar.position.copy(p).setY(p.y + 7.5);
+    bar.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), nn);
+    scene.add(bar);
+  }
 
   // start/finish gantry
   const g0 = curve.getPointAt(0), n0 = normals[0], t0 = tangents[0];
@@ -283,9 +323,14 @@ function placeOnTrack(obj, d, offset, yaw = 0, bank = 0) {
   obj.position.y += 0.02;
   const look = obj.position.clone().add(_t);
   obj.lookAt(look);
-  // No half turn here: the models are built nose-first down -z, which is the
-  // same axis lookAt aligns, so adding PI pointed every car backwards.
-  if (yaw) obj.rotateY(yaw);         // where the nose actually points
+  // three.js lookAt swaps target and position for non-cameras, so a mesh ends up
+  // facing +z — the opposite of a camera. The models are nose-first down -z, so
+  // the half turn is required. Verified rather than reasoned: without it the
+  // nose reads (0,0,-1) while travelling toward +z.
+  obj.rotateY(Math.PI);
+  // Negated: after that flip a positive rotateY turns the nose away from +lat,
+  // which would point the car opposite to the way it slides.
+  if (yaw) obj.rotateY(-yaw);
   if (bank) obj.rotateZ(bank);       // rotateZ, not rotation.z — assigning the
                                      // euler would discard what lookAt wrote
   // Return copies. These scratch vectors are overwritten by the next call, and
@@ -367,7 +412,7 @@ function buildCockpit() {
 function init() {
   const host = $('view');
   scene = new THREE.Scene();
-  scene.fog = new THREE.Fog(0xbcd8ee, 260, 900);
+  scene.fog = new THREE.Fog(0x2a0f3d, 120, 620);   // neon haze eats the distance
 
   camera = new THREE.PerspectiveCamera(62, 16 / 9, 0.4, 2600);
   scene.add(skyDome());
@@ -378,25 +423,30 @@ function init() {
   resize();
   addEventListener('resize', resize);
 
-  scene.add(new THREE.HemisphereLight(0xdfefff, 0x40603a, 1.05));
-  const sun = new THREE.DirectionalLight(0xfff2d8, 1.25);
-  sun.position.set(-160, 220, 120);
-  scene.add(sun);
+  // City light, not daylight: a cool wash from above, magenta bounce from below,
+  // and two coloured keys so everything picks up a pink or cyan edge.
+  scene.add(new THREE.HemisphereLight(0x5a4a9a, 0xff2f8a, 0.85));
+  const k1 = new THREE.DirectionalLight(0xff5fc0, 1.05); k1.position.set(-180, 140, 90);
+  const k2 = new THREE.DirectionalLight(0x40d8ff, 0.9); k2.position.set(170, 120, -140);
+  scene.add(k1); scene.add(k2);
+  scene.add(new THREE.AmbientLight(0x2a2050, 0.7));
 
   // ground
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(4000, 4000),
-    new THREE.MeshLambertMaterial({ color: 0xffffff, map: grassTex(160, 160) }));
+    new THREE.MeshLambertMaterial({ color: 0x0d0d16 }));
   ground.rotation.x = -Math.PI / 2; ground.position.y = -14;
   scene.add(ground);
 
   // far hills, so the horizon is not empty
-  const hillMat = new THREE.MeshLambertMaterial({ color: 0x5c7f6b });
-  for (let i = 0; i < 26; i++) {
-    const a = (i / 26) * Math.PI * 2, r = 900 + Math.random() * 300;
-    const h = new THREE.Mesh(new THREE.ConeGeometry(120 + Math.random() * 150, 90 + Math.random() * 140, 6), hillMat);
-    h.position.set(Math.cos(a) * r, -14, Math.sin(a) * r);
-    scene.add(h);
+  // distant skyline instead of hills
+  const farMat = new THREE.MeshLambertMaterial({ color: 0x140f28 });
+  for (let i = 0; i < 90; i++) {
+    const a = (i / 90) * Math.PI * 2 + Math.random() * 0.05, r = 780 + Math.random() * 420;
+    const hh = 90 + Math.random() * 300;
+    const b = new THREE.Mesh(new THREE.BoxGeometry(40 + Math.random() * 70, hh, 40 + Math.random() * 70), farMat);
+    b.position.set(Math.cos(a) * r, -14 + hh / 2, Math.sin(a) * r);
+    scene.add(b);
   }
 
   buildCircuit();
@@ -430,14 +480,14 @@ function resize() {
 
 // ---------- simulation ----------
 function reset() {
-  dist = 0; lat = 0; speed = 0; steer = 0; yaw = 0;
+  dist = 0; lat = 0; speed = 0; steer = 0; yaw = 0; slip = 0;
   lap = 1; lapTime = 0; over = false; started = false;
   rivals.forEach((r, i) => { r.d = (i + 1) * 34; r.lap = 1; r.prev = 0; });
   syncWorld(0);
 }
 
 function syncWorld(dt) {
-  const info = placeOnTrack(car, dist, lat, yaw, -steer * 0.06);
+  const info = placeOnTrack(car, dist, lat, yaw + slip, -steer * 0.06 - slip * 0.10);
   for (const r of rivals) placeOnTrack(r.obj, r.d, r.lat);
 
   // chase camera, or cockpit
@@ -490,6 +540,12 @@ function step(dt) {
     // Cornering load goes with speed squared: that is what makes braking for a
     // corner the right move rather than a suggestion.
     yaw += k * v * v * 0.30 * dt;             // the corner pushes the nose wide
+    // Handbrake breaks the back end loose. Slip is the angle the car is rotated
+    // beyond where it is actually travelling — so you point into the corner and
+    // keep the throttle on, which is the whole appeal.
+    const wantSlip = keys.drift && speed > 22 ? steer * DRIFT_YAW : 0;
+    slip = lerp(slip, wantSlip, clamp(dt * (keys.drift ? 3.4 : 2.6), 0, 1));
+    if (keys.drift) speed += -7 * dt;                  // sliding scrubs some speed
     yaw = clamp(yaw, -0.62, 0.62);
     lat += Math.sin(yaw) * speed * dt;
 
@@ -635,10 +691,12 @@ function finish() {
 
 // ---------- input ----------
 const KEY = { ArrowUp: 'gas', KeyW: 'gas', ArrowDown: 'brake', KeyS: 'brake',
-              ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right' };
+              ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right',
+              Space: 'drift', ShiftLeft: 'drift' };
 addEventListener('keydown', (e) => {
   if (e.code === 'KeyR') return begin();
   if (e.code === 'KeyC') { camMode = camMode ? 0 : 1; return; }   // cockpit <-> chase
+  if (e.code === 'Space' && !$('panel').hidden) { e.preventDefault(); return $('go').click(); }
   const k = KEY[e.code];
   if (k) { keys[k] = true; e.preventDefault(); }
   else if (e.code === 'Space' && !$('panel').hidden) { e.preventDefault(); $('go').click(); }

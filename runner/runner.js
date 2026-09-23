@@ -1,4 +1,4 @@
-/* The runner — an endless runner. You are Σ. Jump the cash on the ground,
+/* The runner — an endless runner. You are a Pagani. Jump the cash on the ground,
    duck the cash in the air.
 
    Levels are data, not code, so adding level two is a new entry in LEVELS
@@ -109,7 +109,7 @@
   };;;
 
   // ---------- state ----------
-  const P = { x: 110, y: GROUND, vy: 0, w: 40, h: 46, duck: false, onGround: true };
+  const P = { x: 110, y: GROUND, vy: 0, w: 76, h: 46, duck: false, onGround: true, wing: 1 };
   let obstacles = [], skyline = [], lamps = [], speed = 6, dist = 0, spawnIn = 90,
       running = false, over = false, paused = false, raf = null, last = 0, tick = 0, loopId = 0;
   let best = 0;
@@ -211,8 +211,8 @@
 
   // ---------- obstacles ----------
   // low  -> a stack of cash on the pavement. Must be jumped.
-  // high -> cash blowing at head height. Its underside sits below a standing Σ
-  //         but above a ducking one, so ducking is the only way through.
+  // high -> cash blowing at head height. Its underside sits below the car's raised wing
+  //         but above the folded one, so ducking is the only way through.
   function spawn() {
     const high = dist > 180 && Math.random() < 0.32;
     if (high) {
@@ -230,7 +230,7 @@
   }
 
   function hitbox() {
-    const h = P.duck ? duckH : P.h, w = P.duck ? P.w + 12 : P.w;
+    const h = P.duck ? duckH : P.h, w = P.w;
     return { x: P.x - w / 2, y: P.y - h, w, h };
   }
   function box(o) {
@@ -605,7 +605,7 @@
     for (let x = -((dist * 12) % 74); x < W; x += 74) blk(x, GROUND + 19, 36, PX, '#2e3160');
 
     for (const o of obstacles) drawCash(o);
-    drawSigma();
+    drawCar();
   }
 
   // Obstacles have to read on every city: Tokyo's near-black sky and Seoul's
@@ -654,25 +654,44 @@
     }
   }
 
-  function drawSigma() {
-    const h = P.duck ? duckH : P.h;
+  // Side profile, facing right, in a 120x34 box with the ground at y=34.
+  // The rear wing is drawn separately: raised it is the full standing hitbox
+  // height, folded it drops to the ducking one.
+  const CAR_BODY = new Path2D('M2 25V20C2 18 3.5 17 6 16.8L28 15.6C35 15.2 40 11 47 9L50 7.2C54 6.6 58 6.8 62 7.6C71 8.6 78 11.5 84 15L104 18.2C111 19.3 116 21 118 23.5V25.6L105 26.5A9.5 9.5 0 0 0 86 26.5H36A9.5 9.5 0 0 0 17 26.5ZM48 14.3C53 11.3 58 10.3 64 10.4C70 10.6 74 12 78 14.5ZM40 17.6L52 17.3L50 21.5H38Z');
+  const CAR_S = 0.65;
+
+  function drawCar() {
+    // ease the wing toward raised or folded
+    P.wing += ((P.duck ? 0 : 1) - P.wing) * 0.35;
     ctx.save();
     ctx.translate(P.x, P.y);
     ctx.fillStyle = 'rgba(0,0,0,.32)';
-    ctx.beginPath(); ctx.ellipse(0, 3, 22, 5, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(0, 3, 40, 5, 0, 0, Math.PI * 2); ctx.fill();
+    // nose up while airborne so the jump reads
+    ctx.rotate(P.onGround ? 0 : -0.12);
+    ctx.translate(-60 * CAR_S, (P.onGround ? Math.sin(tick / 3) * 0.6 : 0) - 34 * CAR_S);
+    ctx.scale(CAR_S, CAR_S);
     ctx.fillStyle = '#edece6';
-    ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-    if (P.duck) {
-      ctx.font = '600 30px Georgia, serif';
-      ctx.setTransform(1.5, 0, 0, 0.78, P.x, P.y);
-      ctx.fillText('Σ', 0, 0);
-    } else {
-      // a small tilt while airborne so the jump reads
-      const lean = P.onGround ? Math.sin(tick / 5) * 0.04 : -0.16;
-      ctx.rotate(lean);
-      ctx.font = `600 ${h + 8}px Georgia, serif`;
-      ctx.fillText('Σ', 0, 0);
+    ctx.fill(CAR_BODY, 'evenodd');
+    // wing: stalks from the rear deck up to the plate
+    const top = 12.5 + (34 - P.h / CAR_S - 12.5) * P.wing;
+    ctx.fillRect(1, top, 13, 2.2);
+    ctx.fillRect(5, top + 2, 1.8, 17 - top - 2);
+    ctx.fillRect(9.5, top + 2, 1.8, 17 - top - 2);
+    // wheels, with a spoke that turns with the road
+    for (const cx of [26.5, 95.5]) {
+      ctx.fillStyle = '#edece6';
+      ctx.beginPath(); ctx.arc(cx, 27, 6.8, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#0a172a';
+      ctx.beginPath(); ctx.arc(cx, 27, 3.2, 0, Math.PI * 2); ctx.fill();
+      const a = dist * 0.9;
+      ctx.strokeStyle = '#edece6'; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.moveTo(cx - Math.cos(a) * 3.2, 27 - Math.sin(a) * 3.2);
+      ctx.lineTo(cx + Math.cos(a) * 3.2, 27 + Math.sin(a) * 3.2); ctx.stroke();
     }
+    // quad exhaust
+    ctx.fillStyle = '#0a172a';
+    ctx.beginPath(); ctx.arc(3.2, 21.2, 1, 0, Math.PI * 2); ctx.arc(3.2, 23.6, 1, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
   }
 

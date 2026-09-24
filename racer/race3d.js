@@ -19,7 +19,8 @@ const $ = (id) => document.getElementById(id);
 const ROAD_W = 14;            // metres, half-width
 const LAPS = 3;
 const FIELD = 5;
-const MAX_SPEED = 88;         // m/s ≈ 316 kph
+const MAX_SPEED = 88;         // m/s ≈ 316 kph. Not a cap: the rivals' pace, and
+                              // where acceleration starts to taper for you.
 const ACCEL = 15, BRAKE = -38, DRAG = -5, OFF_DRAG = -26, OFF_MAX = 26;
 const STEER_RATE = 9;
 const DRIFT_YAW = 1.05;      // extra rotation the back end gives you on the handbrake
@@ -30,6 +31,7 @@ let sun, sunOffset, hemiLight, ambLight;
 let car, rivals = [], camMode = 0;   // 0 = driver's eye, 1 = chase
 let dist = 0, lat = 0, speed = 0, steer = 0, yaw = 0, slip = 0, hitWall = 0, keys = {};
 let running = false, started = false, over = false;
+let finalPos = null;                 // your place, fixed once you take the flag
 let lap = 1, lapTime = 0, best = null, splitT = 0, raf = null, loopId = 0;
 let fpsT = 0, fpsN = 0;
 
@@ -888,7 +890,7 @@ function updateWeather(dt) {
   // Move the rain volume with the camera and slide it down; the streaks lean
   // backwards as you go faster, which is most of the sense of driving into it.
   rain.position.set(camera.position.x, camera.position.y - 26, camera.position.z);
-  rain.rotation.z = -(speed / MAX_SPEED) * 0.5;
+  rain.rotation.z = -Math.min(1.5, speed / MAX_SPEED) * 0.5;
   const rp = rain.geometry.attributes.position, arr = rp.array;
   const fall = 78 * dt;
   for (let i = 0; i < arr.length; i += 6) {
@@ -1042,7 +1044,7 @@ function resize() {
 // ---------- simulation ----------
 function reset() {
   dist = 0; lat = 0; speed = 0; steer = 0; yaw = 0; slip = 0; hitWall = 0;
-  lap = 1; lapTime = 0; over = false; started = false;
+  lap = 1; lapTime = 0; over = false; started = false; finalPos = null;
   rivals.forEach((r, i) => { r.d = (i + 1) * 34; r.lap = 1; r.prev = 0; });
   syncWorld(0);
 }
@@ -1057,13 +1059,13 @@ function syncWorld(dt) {
   const v = speed / MAX_SPEED;
   // Field of view opens up with speed. It is the cheapest and most convincing
   // sense of velocity there is.
-  const wantFov = (camMode === 0 ? 68 : 62) + v * 16;
+  const wantFov = (camMode === 0 ? 68 : 62) + Math.min(v, 1.6) * 16;
   if (Math.abs(camera.fov - wantFov) > 0.05) {
     camera.fov += (wantFov - camera.fov) * (dt ? clamp(dt * 3, 0, 1) : 1);
     camera.updateProjectionMatrix();
   }
   hitWall = Math.max(0, hitWall - (dt || 0) * 2.2);
-  const rough = (Math.abs(lat) > ROAD_W ? 0.06 : 0.012) * v + hitWall * 0.28;
+  const rough = (Math.abs(lat) > ROAD_W ? 0.06 : 0.012) * Math.min(v, 1.5) + hitWall * 0.28;
 
   if (camMode === 0) {
     car.visible = false;
@@ -1113,7 +1115,7 @@ function step(dt) {
     // like dragging a sprite rather than driving. Turn-in needs speed — a
     // stationary car does not change direction, and grip falls away as you go
     // faster, so you understeer if you ask too much.
-    const bite = clamp(speed / 26, 0, 1) * (1 - v * 0.30);
+    const bite = clamp(speed / 26, 0, 1) * Math.max(0.35, 1 - v * 0.30);
     yaw += steer * bite * 2.6 * dt;
     // Weaker self-centring than before. At 2.4 the car snapped back to following
     // the road the instant you let go, which is why it felt like it was driving
@@ -1131,7 +1133,9 @@ function step(dt) {
     yaw = clamp(yaw, -0.62, 0.62);
     lat += Math.sin(yaw) * speed * dt;
 
-    if (keys.gas) speed += ACCEL * dt;
+    // No top speed. Past MAX_SPEED the push falls off with speed, so it keeps
+    // climbing for as long as you hold it, just more slowly.
+    if (keys.gas) speed += (speed > MAX_SPEED ? ACCEL * MAX_SPEED / speed : ACCEL) * dt;
     else if (keys.brake) speed += BRAKE * dt;
     else speed += DRAG * dt;
 
@@ -1147,25 +1151,24 @@ function step(dt) {
       yaw = -yaw * 0.35;                         // snaps the nose back off the barrier
       hitWall = 0.7;
     }
-    speed = clamp(speed, 0, MAX_SPEED);
+    speed = Math.max(0, speed);
 
     lapTime += dt;
   } else if (over) { speed = Math.max(0, speed + DRAG * 2 * dt); yaw *= 0.94; }
 
   const prev = dist;
   dist += speed * dt;
-  if (dist >= curveLen) {
-    dist -= curveLen;
-    if (lap >= LAPS) finish();
-    else {
-      if (best === null || lapTime < best) {
-        best = lapTime;
-        try { localStorage.setItem(BEST_KEY, String(best)); } catch (e) {}
-      }
-      showSplit(lapTime);
-      lap++; lapTime = 0;
+  if (dist >= curveLen && !over) {
+    if (best === null || lapTime < best) {
+      best = lapTime;
+      try { localStorage.setItem(BEST_KEY, String(best)); } catch (e) {}
     }
-  }
+    // Place is taken before the distance wraps. Wrapping first put you a full
+    // lap behind everyone at the flag, which is why a win read as 6th.
+    if (lap >= LAPS) finish();
+    else { showSplit(lapTime); lap++; lapTime = 0; }
+    dist -= curveLen;
+  } else if (dist >= curveLen) dist -= curveLen;
 
   for (const r of rivals) {
     const rk = Math.abs(curvatureAt(r.d));
@@ -1185,6 +1188,7 @@ function step(dt) {
 }
 
 function position() {
+  if (finalPos !== null) return finalPos;       // frozen at the flag
   const mine = (lap - 1) * curveLen + dist;
   let n = 1;
   for (const r of rivals) if ((r.lap - 1) * curveLen + r.d > mine) n++;
@@ -1232,7 +1236,7 @@ function showSplit(t) {
 // ---------- loop ----------
 function renderFrame() {
   // Bloom rises with speed, so the lights smear as you get quicker.
-  const vv = speed / MAX_SPEED;
+  const vv = Math.min(1, speed / MAX_SPEED);   // trail damp past 1 never clears
   if (bloom) bloom.strength = TR.bloom * (0.82 + vv * 0.55);
   if (trail) trail.uniforms.damp.value = 0.55 + Math.pow(vv, 2) * 0.33;
   if (composer) composer.render();
@@ -1251,7 +1255,7 @@ function startLoop() {
     last = ts;
     try {
       step(dt); renderFrame(); hud(dt);
-      Audio.update(speed / MAX_SPEED, keys.gas ? 1 : keys.brake ? 0 : 0.25,
+      Audio.update(Math.min(1.25, speed / MAX_SPEED), keys.gas ? 1 : keys.brake ? 0 : 0.25,
                    Math.abs(slip), Math.abs(lat) > ROAD_W);
       fpsN++; fpsT += dt;
       if (fpsT >= 0.5) { $('fps').textContent = Math.round(fpsN / fpsT); fpsN = 0; fpsT = 0; }
@@ -1283,8 +1287,8 @@ function begin() {
 }
 
 function finish() {
+  const p = finalPos = position();
   over = true; started = false; Audio.stop();
-  const p = position();
   $('p-eyebrow').textContent = 'Chequered flag';
   $('tracks').hidden = true;
   $('p-title').textContent = p === 1 ? 'Won it.' : `P${p}.`;

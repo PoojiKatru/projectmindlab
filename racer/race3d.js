@@ -25,13 +25,13 @@ const STEER_RATE = 9;
 const DRIFT_YAW = 1.05;      // extra rotation the back end gives you on the handbrake
 
 let scene, camera, renderer, composer, bloom, trail, envMap;
-let curve, curveLen, roadMesh;
+let curve, curveLen, roadMesh, tunnelSpan = null;
+let sun, sunOffset, hemiLight, ambLight;
 let car, rivals = [], camMode = 0;   // 0 = driver's eye, 1 = chase
 let dist = 0, lat = 0, speed = 0, steer = 0, yaw = 0, slip = 0, hitWall = 0, keys = {};
 let running = false, started = false, over = false;
 let lap = 1, lapTime = 0, best = null, splitT = 0, raf = null, loopId = 0;
 let fpsT = 0, fpsN = 0;
-try { best = parseFloat(localStorage.getItem('apex3d.best')) || null; } catch (e) {}
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -148,12 +148,27 @@ const TRACKS = [
   },
   {
     id: 'monaco', name: 'Monte Carlo', when: 'afternoon', env: 'riviera', rain: false,
-    // Tight, walled, and climbing: short bursts between corners rather than
-    // long sweeps, with a real hill up the back and a plunge to the harbour.
+    // Traced from the real circuit at close to real scale, about 3.4km. Pit
+    // straight, Sainte Devote, the climb up Beau Rivage to Casino Square, down
+    // through Mirabeau and the Loews hairpin to Portier, the tunnel along the
+    // sea front, the Nouvelle Chicane, Tabac, the Swimming Pool, Rascasse and
+    // Anthony Noghes back onto the straight.
     control: [
-      [0,0,0],[95,4,-55],[150,14,-140],[120,26,-215],[35,34,-250],[-60,38,-215],
-      [-105,34,-135],[-80,24,-60],[-120,14,20],[-205,8,70],[-250,2,155],
-      [-205,-2,235],[-95,-4,255],[35,-2,225],[120,0,150],[110,0,70],
+      [-293.4,0,443.8],[-307,0,267],[-324,1,114],[-334.2,3,1.8],[-273,6,-56],[-164.2,12,-113.8],
+      [-52,19,-175],[39.8,26,-236.2],[101,31,-304.2],[121.4,36,-385.8],[128.2,39,-467.4],[162.2,40,-535.4],
+      [216.6,37,-583],[271,33,-583],[298.2,28,-528.6],[315.2,22,-447],[322,17,-358.6],[301.6,12,-270.2],
+      [250.6,8,-195.4],[189.4,4,-147.8],[121.4,2,-113.8],[60.2,1,-73],[-28.2,0,-32.2],[-123.4,0,-5],
+      [-198.2,0,29],[-177.8,0,97],[-109.8,0,137.8],[-82.6,0,212.6],[-62.2,0,287.4],[-7.8,0,348.6],
+      [73.8,0,396.2],[107.8,1,457.4],[53.4,1,518.6],[-35,0,579.8],[-109.8,0,607],[-191.4,0,579.8],
+      [-259.4,0,532.2],
+    ],
+    // Covered from just after Portier to the chicane, as control-point indices.
+    tunnel: [15.4, 19.2],
+    // Water outlines (x, z). The harbour sits inside the lap; the sea wraps the
+    // outside of the tunnel and the bottom of the circuit.
+    water: [
+      [[-28,70],[108,2],[210,-56],[271,-114],[298,131],[271,369],[176,376],[74,301],[6,192]],
+      [[387,-685],[1300,-685],[1300,1300],[-844,1300],[-844,709],[-300,658],[-96,692],[74,607],[193,488],[346,437],[387,131]],
     ],
     sky: ['#1d63b8', '#4d94d8', '#93c4e8', '#d8ecf7'],
     stars: false,
@@ -180,13 +195,28 @@ let TR = TRACKS[0];
   if (found) TR = found;
 })();
 const CONTROL = null;   // superseded by TR.control
+const BEST_KEY = TR.id === 'shibuya' ? 'apex3d.best' : `apex3d.best.${TR.id}`;
+try { best = parseFloat(localStorage.getItem(BEST_KEY)) || null; } catch (e) {}
+
+// Is (x, z) over any of the track's water outlines?
+function inWater(x, z) {
+  return (TR.water || []).some((poly) => {
+    let inside = false;
+    for (let a = 0, b = poly.length - 1; a < poly.length; b = a++) {
+      const [xa, za] = poly[a], [xb, zb] = poly[b];
+      if ((za > z) !== (zb > z) && x < (xb - xa) * (z - za) / (zb - za) + xa) inside = !inside;
+    }
+    return inside;
+  });
+}
 
 function buildCircuit() {
   curve = new THREE.CatmullRomCurve3(
     TR.control.map(([x, y, z]) => new THREE.Vector3(x, y, z)), true, 'catmullrom', 0.5);
   curveLen = curve.getLength();
 
-  const N = 900;
+  // About 2m a segment, so a long lap keeps the same detail as a short one.
+  const N = Math.max(900, Math.round(curveLen / 2));
   const pts = curve.getSpacedPoints(N);
   const tangents = [], normals = [];
   for (let i = 0; i <= N; i++) {
@@ -195,6 +225,20 @@ function buildCircuit() {
     normals.push(new THREE.Vector3().crossVectors(t, new THREE.Vector3(0, 1, 0)).normalize());
   }
 
+  // Tunnel span in segments, from its control-point indices.
+  const nearestSeg = (ci) => {
+    const a = TR.control[Math.floor(ci)], b = TR.control[Math.ceil(ci) % TR.control.length], f = ci % 1;
+    const x = a[0] + (b[0] - a[0]) * f, z = a[2] + (b[2] - a[2]) * f;
+    let bi = 0, bd = Infinity;
+    for (let i = 0; i < N; i++) {
+      const d = (pts[i].x - x) ** 2 + (pts[i].z - z) ** 2;
+      if (d < bd) { bd = d; bi = i; }
+    }
+    return bi;
+  };
+  const tun = TR.tunnel ? [nearestSeg(TR.tunnel[0]), nearestSeg(TR.tunnel[1])] : null;
+  tunnelSpan = tun ? [tun[0] / N * curveLen, tun[1] / N * curveLen] : null;
+  const inTunnel = (i) => tun && i >= tun[0] - 6 && i <= tun[1] + 6;
   // road + kerbs + verge as one ribbon set
   const road = [], kerbL = [], kerbR = [], verge = [], uv = [];
   const push = (arr, v) => arr.push(v.x, v.y, v.z);
@@ -348,36 +392,51 @@ function buildCircuit() {
     const wallCols = [0xe8dcc4, 0xdcc9ab, 0xe6d2be, 0xcfae91, 0xf0e4d2];
     const roofMat = new THREE.MeshStandardMaterial({ color: 0xa8563c, roughness: 0.85 });
     const shutter = new THREE.MeshStandardMaterial({ color: 0x3c5a6b, roughness: 0.7 });
-    let placed = 0;
-    for (let attempt = 0; attempt < 1400 && placed < 130; attempt++) {
+    const want = Math.round(130 * N / 900);
+    // Walls, roofs and windows are instanced: at this lap length there are
+    // thousands of shutters, and one draw call each was the frame rate.
+    const box = new THREE.BoxGeometry(1, 1, 1);
+    const walls = wallCols.map((c) => new THREE.InstancedMesh(box,
+      new THREE.MeshStandardMaterial({ color: c, roughness: 0.88 }), want));
+    const wallN = wallCols.map(() => 0);
+    const roofs = new THREE.InstancedMesh(box, roofMat, want);
+    const wins = new THREE.InstancedMesh(box, shutter, want * 40);
+    let placed = 0, winN = 0;
+    for (let attempt = 0; attempt < want * 11 && placed < want; attempt++) {
       const i = Math.floor(Math.random() * N), s = Math.random() < 0.5 ? 1 : -1;
       const p = pts[i].clone().addScaledVector(normals[i], s * (ROAD_W + 12 + Math.random() * 30));
       const hgt = 14 + Math.random() * 40, wid = 14 + Math.random() * 14, dep = 14 + Math.random() * 16;
-      if (!clearOf(p, ROAD_W + 9 + Math.hypot(wid, dep) / 2)) continue;
-      placed++;
+      if (!clearOf(p, ROAD_W + 9 + Math.hypot(wid, dep) / 2) || inWater(p.x, p.z)) continue;
       q.setFromUnitVectors(new THREE.Vector3(0, 0, 1), tangents[i]);
-      const wall = new THREE.Mesh(new THREE.BoxGeometry(wid, hgt, dep),
-        new THREE.MeshStandardMaterial({ color: wallCols[placed % wallCols.length], roughness: 0.88 }));
-      wall.position.copy(p).setY(p.y + hgt / 2); wall.quaternion.copy(q);
-      wall.castShadow = true; wall.receiveShadow = true; scene.add(wall);
-      const roof = new THREE.Mesh(new THREE.BoxGeometry(wid + 1.2, 0.8, dep + 1.2), roofMat);
-      roof.position.copy(p).setY(p.y + hgt + 0.4); roof.quaternion.copy(q); scene.add(roof);
+      const wc = placed % wallCols.length;
+      m.compose(new THREE.Vector3(p.x, p.y + hgt / 2, p.z), q, new THREE.Vector3(wid, hgt, dep));
+      walls[wc].setMatrixAt(wallN[wc]++, m);
+      m.compose(new THREE.Vector3(p.x, p.y + hgt + 0.4, p.z), q, new THREE.Vector3(wid + 1.2, 0.8, dep + 1.2));
+      roofs.setMatrixAt(placed, m);
+      placed++;
       for (let f = 1; f * 4 < hgt - 3; f++) {          // shuttered windows
         for (let c = -1; c <= 1; c++) {
-          const win = new THREE.Mesh(new THREE.BoxGeometry(1.6, 2.2, 0.3), shutter);
-          win.position.copy(p.clone().addScaledVector(normals[i], -s * (wid / 2 + 0.1))
-            .addScaledVector(tangents[i], c * (dep / 3.4))).setY(p.y + f * 4);
-          win.quaternion.copy(q); scene.add(win);
+          if (winN >= want * 40) break;
+          const at = p.clone().addScaledVector(normals[i], -s * (wid / 2 + 0.1))
+            .addScaledVector(tangents[i], c * (dep / 3.4)).setY(p.y + f * 4);
+          m.compose(at, q, new THREE.Vector3(1.6, 2.2, 0.3));
+          wins.setMatrixAt(winN++, m);
         }
       }
     }
+    walls.forEach((w, i) => {
+      w.count = wallN[i]; w.instanceMatrix.needsUpdate = true;
+      w.castShadow = true; w.receiveShadow = true; scene.add(w);
+    });
+    roofs.count = placed; roofs.instanceMatrix.needsUpdate = true; scene.add(roofs);
+    wins.count = winN; wins.instanceMatrix.needsUpdate = true; scene.add(wins);
     // palms
     const palmTrunk = new THREE.MeshStandardMaterial({ color: 0x7a6248, roughness: 0.9 });
     const frond = new THREE.MeshStandardMaterial({ color: 0x2f7a3a, roughness: 0.8, side: THREE.DoubleSide });
     for (let i = 0; i < N; i += 26) {
       const s = (i / 26) % 2 ? 1 : -1;
       const base = pts[i].clone().addScaledVector(normals[i], s * (ROAD_W + 7.5));
-      if (!clearOf(base, ROAD_W + 5)) continue;
+      if (!clearOf(base, ROAD_W + 5) || inTunnel(i) || inWater(base.x, base.z)) continue;
       const tr = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.42, 9, 6), palmTrunk);
       tr.position.copy(base).setY(base.y + 4.5); tr.castShadow = true; scene.add(tr);
       for (let f = 0; f < 7; f++) {
@@ -387,23 +446,97 @@ function buildCircuit() {
         fr.translateX(2.4); scene.add(fr);
       }
     }
-    // harbour: water plane and boats beside the lowest part of the lap
-    let lowI = 0;
-    for (let i = 0; i < N; i++) if (pts[i].y < pts[lowI].y) lowI = i;
-    const harbour = pts[lowI].clone().addScaledVector(normals[lowI], -(ROAD_W + 70));
-    const water = new THREE.Mesh(new THREE.PlaneGeometry(320, 260),
-      new THREE.MeshStandardMaterial({ color: 0x2b7fb8, roughness: 0.08, metalness: 0.55, envMapIntensity: 2 }));
-    water.rotation.x = -Math.PI / 2; water.position.copy(harbour).setY(pts[lowI].y - 5);
-    scene.add(water);
     const hull = new THREE.MeshStandardMaterial({ color: 0xf4f4f0, roughness: 0.35, metalness: 0.2 });
-    for (let b = 0; b < 22; b++) {
-      const bx = harbour.x + (Math.random() - 0.5) * 250, bz = harbour.z + (Math.random() - 0.5) * 200;
-      const len = 10 + Math.random() * 22;
-      const boat = new THREE.Mesh(new THREE.BoxGeometry(len * 0.3, 2.2, len), hull);
-      boat.position.set(bx, pts[lowI].y - 4, bz); boat.rotation.y = Math.random() * Math.PI;
-      scene.add(boat);
+    const waterMat = new THREE.MeshStandardMaterial({
+      color: 0x2b7fb8, roughness: 0.08, metalness: 0.55, envMapIntensity: 2 });
+    const boat = (bx, by, bz) => {
+      const len = 10 + Math.random() * 22, ry = Math.random() * Math.PI;
+      const b = new THREE.Mesh(new THREE.BoxGeometry(len * 0.3, 2.2, len), hull);
+      b.position.set(bx, by, bz); b.rotation.y = ry; scene.add(b);
       const cabin = new THREE.Mesh(new THREE.BoxGeometry(len * 0.22, 1.8, len * 0.35), hull);
-      cabin.position.set(bx, pts[lowI].y - 2.2, bz); cabin.rotation.y = boat.rotation.y; scene.add(cabin);
+      cabin.position.set(bx, by + 1.8, bz); cabin.rotation.y = ry; scene.add(cabin);
+    };
+    if (TR.water) {
+      // Shape is drawn in (x, -z) so that rotating it flat lands it on (x, z).
+      for (const poly of TR.water) {
+        const sh = new THREE.Shape(poly.map(([x, z]) => new THREE.Vector2(x, -z)));
+        const w = new THREE.Mesh(new THREE.ShapeGeometry(sh), waterMat);
+        w.rotation.x = -Math.PI / 2; w.position.y = -5; scene.add(w);
+      }
+      // boats moored in the harbour, the first outline
+      const hp = TR.water[0];
+      const xs = hp.map((v) => v[0]), zs = hp.map((v) => v[1]);
+      for (let b = 0, tries = 0; b < 34 && tries < 600; tries++) {
+        const bx = Math.min(...xs) + Math.random() * (Math.max(...xs) - Math.min(...xs));
+        const bz = Math.min(...zs) + Math.random() * (Math.max(...zs) - Math.min(...zs));
+        const v = new THREE.Vector3(bx, 0, bz);
+        if (!inWater(bx, bz) || !clearOf(v, ROAD_W + 16)) continue;
+        boat(bx, -4, bz); b++;
+      }
+    } else {
+      // harbour: water plane and boats beside the lowest part of the lap
+      let lowI = 0;
+      for (let i = 0; i < N; i++) if (pts[i].y < pts[lowI].y) lowI = i;
+      const harbour = pts[lowI].clone().addScaledVector(normals[lowI], -(ROAD_W + 70));
+      const water = new THREE.Mesh(new THREE.PlaneGeometry(320, 260), waterMat);
+      water.rotation.x = -Math.PI / 2; water.position.copy(harbour).setY(pts[lowI].y - 5);
+      scene.add(water);
+      for (let b = 0; b < 22; b++)
+        boat(harbour.x + (Math.random() - 0.5) * 250, pts[lowI].y - 4, harbour.z + (Math.random() - 0.5) * 200);
+    }
+  }
+
+  // ---------- tunnel ----------
+  // Walls sit on the barrier line, so the existing wall collision is the tunnel
+  // wall. It casts shadow, and the frame loop dims the sky light inside.
+  if (tun) {
+    const TW = ROAD_W + 5.6, TH = 9;
+    const wallL = [], wallR = [], roof = [];
+    for (let i = tun[0]; i <= tun[1]; i++) {
+      const p = pts[i], n = normals[i];
+      const l = p.clone().addScaledVector(n, TW), r = p.clone().addScaledVector(n, -TW);
+      wallL.push(l.clone().setY(p.y - 1), l.clone().setY(p.y + TH));
+      wallR.push(r.clone().setY(p.y + TH), r.clone().setY(p.y - 1));
+      roof.push(l.clone().setY(p.y + TH), r.clone().setY(p.y + TH));
+    }
+    const tunnelMat = new THREE.MeshStandardMaterial({ color: 0xb8ae9c, roughness: 0.92, side: THREE.DoubleSide });
+    for (const strip of [wallL, wallR, roof]) {
+      const g = new THREE.BufferGeometry().setFromPoints(strip);
+      const idx = [];
+      for (let k = 0; k < strip.length / 2 - 1; k++) {
+        const a = k * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+      }
+      g.setIndex(idx); g.computeVertexNormals();
+      const mesh = new THREE.Mesh(g, tunnelMat);
+      mesh.castShadow = true; mesh.receiveShadow = true; scene.add(mesh);
+    }
+    // sodium lamps down both sides of the roof
+    const lamps = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshBasicMaterial({ color: 0xffc46b }), Math.ceil((tun[1] - tun[0]) / 5) * 2 + 2);
+    let ln = 0;
+    for (let i = tun[0] + 2; i < tun[1]; i += 5) {
+      q.setFromUnitVectors(new THREE.Vector3(0, 0, 1), tangents[i]);
+      for (const s of [1, -1]) {
+        m.compose(pts[i].clone().addScaledVector(normals[i], s * (ROAD_W - 2)).setY(pts[i].y + TH - 0.25),
+                  q, new THREE.Vector3(1.2, 0.25, 3.2));
+        lamps.setMatrixAt(ln++, m);
+      }
+    }
+    lamps.count = ln; lamps.instanceMatrix.needsUpdate = true; scene.add(lamps);
+    // the hotel the tunnel runs under
+    const hotelMat = new THREE.MeshStandardMaterial({ color: 0xece4d6, roughness: 0.85 });
+    const glassBand = new THREE.MeshStandardMaterial({ color: 0x3c5a6b, roughness: 0.3, metalness: 0.5 });
+    for (let i = tun[0] + 8; i < tun[1] - 4; i += 14) {
+      const p = pts[i];
+      q.setFromUnitVectors(new THREE.Vector3(0, 0, 1), tangents[i]);
+      const blk = new THREE.Mesh(new THREE.BoxGeometry(TW * 2 + 14, 22, 34), hotelMat);
+      // lifted clear of the roof: flush, the two faces fought and striped the ceiling
+      blk.position.copy(p).setY(p.y + TH + 11.8); blk.quaternion.copy(q);
+      blk.castShadow = true; blk.receiveShadow = true; scene.add(blk);
+      for (let f = 0; f < 4; f++) {
+        const band = new THREE.Mesh(new THREE.BoxGeometry(TW * 2 + 14.4, 1.6, 34.4), glassBand);
+        band.position.copy(p).setY(p.y + TH + 4 + f * 5); band.quaternion.copy(q); scene.add(band);
+      }
     }
   }
 
@@ -841,8 +974,9 @@ function init() {
   // City light, not daylight: a cool wash from above, magenta bounce from below,
   // and two coloured keys so everything picks up a pink or cyan edge.
   const L = TR.lights;
-  scene.add(new THREE.HemisphereLight(L.hemi[0], L.hemi[1], L.hemi[2]));
-  scene.add(new THREE.AmbientLight(L.amb[0], L.amb[1]));
+  hemiLight = new THREE.HemisphereLight(L.hemi[0], L.hemi[1], L.hemi[2]);
+  ambLight = new THREE.AmbientLight(L.amb[0], L.amb[1]);
+  scene.add(hemiLight); scene.add(ambLight);
   const k1 = new THREE.DirectionalLight(L.keys[0][0], L.keys[0][1]);
   k1.position.set(...L.keys[0][2]);
   k1.castShadow = true;
@@ -852,7 +986,10 @@ function init() {
   k1.shadow.camera.top = 180; k1.shadow.camera.bottom = -180;
   const k2 = new THREE.DirectionalLight(L.keys[1][0], L.keys[1][1]);
   k2.position.set(...L.keys[1][2]);
-  scene.add(k1); scene.add(k2);
+  scene.add(k1); scene.add(k2); scene.add(k1.target);
+  // The shadow box is only 360m across, so it travels with the car; on a long
+  // lap a fixed one left most of the circuit, tunnel included, unshadowed.
+  sun = k1; sunOffset = new THREE.Vector3(...L.keys[0][2]);
 
   // ground
   const ground = new THREE.Mesh(
@@ -867,6 +1004,7 @@ function init() {
   for (let i = 0; i < 90; i++) {
     const a = (i / 90) * Math.PI * 2 + Math.random() * 0.05, r = 780 + Math.random() * 420;
     const hh = 90 + Math.random() * 300;
+    if (inWater(Math.cos(a) * r, Math.sin(a) * r)) continue;
     const b = new THREE.Mesh(new THREE.BoxGeometry(40 + Math.random() * 70, hh, 40 + Math.random() * 70), farMat);
     b.position.set(Math.cos(a) * r, -14 + hh / 2, Math.sin(a) * r);
     scene.add(b);
@@ -945,6 +1083,19 @@ function syncWorld(dt) {
     camera.position.lerp(want, dt ? clamp(dt * 6, 0, 1) : 1);
     camera.lookAt(car.position.x, car.position.y + 1.1, car.position.z);
   }
+  // sun and its shadow box ride along with the car
+  if (sun) {
+    sun.position.copy(car.position).add(sunOffset);
+    sun.target.position.copy(car.position);
+  }
+  // Inside the tunnel the open-sky fill drops away, so it actually goes dark.
+  if (hemiLight) {
+    const dd = ((dist % curveLen) + curveLen) % curveLen;
+    const under = tunnelSpan && dd > tunnelSpan[0] + 10 && dd < tunnelSpan[1] - 10 ? 1 : 0;
+    const k = dt ? clamp(dt * 3, 0, 1) : 1;
+    hemiLight.intensity = lerp(hemiLight.intensity, TR.lights.hemi[2] * (under ? 0.3 : 1), k);
+    ambLight.intensity = lerp(ambLight.intensity, TR.lights.amb[1] * (under ? 0.35 : 1), k);
+  }
   // brake lights
   const braking = keys.brake ? 1 : 0;
   if (car.userData.tail) car.userData.tail.material.color.setHex(braking ? 0xff5a4a : 0xff2418);
@@ -1009,7 +1160,7 @@ function step(dt) {
     else {
       if (best === null || lapTime < best) {
         best = lapTime;
-        try { localStorage.setItem('apex3d.best', String(best)); } catch (e) {}
+        try { localStorage.setItem(BEST_KEY, String(best)); } catch (e) {}
       }
       showSplit(lapTime);
       lap++; lapTime = 0;

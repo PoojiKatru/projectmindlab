@@ -26,7 +26,7 @@ const DRIFT_YAW = 1.05;      // extra rotation the back end gives you on the han
 
 let scene, camera, renderer, composer, bloom, trail, envMap;
 let curve, curveLen, roadMesh;
-let car, rivals = [], cockpit = null, camMode = 0;   // 0 = cockpit
+let car, rivals = [], camMode = 0;   // 0 = driver's eye, 1 = chase
 let dist = 0, lat = 0, speed = 0, steer = 0, yaw = 0, slip = 0, hitWall = 0, keys = {};
 let running = false, started = false, over = false;
 let lap = 1, lapTime = 0, best = null, splitT = 0, raf = null, loopId = 0;
@@ -789,62 +789,6 @@ function updateWeather(dt) {
   sp.needsUpdate = true;
 }
 
-// ---------- cockpit ----------
-// Parented to the camera, so it stays locked to your eyeline exactly the way a
-// real car does. This is what turns "watching a car" into "driving one".
-let wheelMesh = null;
-function buildCockpit() {
-  const g = new THREE.Group();
-  const carbon = new THREE.MeshLambertMaterial({ color: 0x15181e });
-  const body = new THREE.MeshLambertMaterial({ color: 0x1f6f5c });
-  const accent = new THREE.MeshLambertMaterial({ color: 0x2fe0b0 });
-
-  // nose stretching away in front of you
-  const nose = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.2, 2.6), body);
-  nose.position.set(0, -0.62, -2.15); g.add(nose);
-  const wingF = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.07, 0.42), accent);
-  wingF.position.set(0, -0.72, -3.35); g.add(wingF);
-
-  // front wheels in the corners of your vision
-  const tyre = new THREE.CylinderGeometry(0.34, 0.34, 0.3, 14);
-  const tm = new THREE.MeshLambertMaterial({ color: 0x0d1014 });
-  for (const s of [-1, 1]) {
-    const w = new THREE.Mesh(tyre, tm);
-    w.position.set(s * 0.78, -0.56, -1.65); w.rotation.z = Math.PI / 2; g.add(w);
-  }
-
-  // halo, exactly where it sits in your view in a modern car
-  const halo = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.035, 8, 22, Math.PI * 1.15), carbon);
-  halo.position.set(0, -0.02, -0.62); halo.rotation.x = Math.PI / 2; halo.rotation.z = Math.PI;
-  g.add(halo);
-  const strut = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.5), carbon);
-  strut.position.set(0, -0.06, -0.92); g.add(strut);
-
-  // cockpit sides
-  for (const s of [-1, 1]) {
-    const side = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.34, 1.5), body);
-    side.position.set(s * 0.42, -0.55, -0.9); g.add(side);
-    const mir = new THREE.Mesh(new THREE.BoxGeometry(0.19, 0.11, 0.05), carbon);
-    mir.position.set(s * 0.62, -0.3, -0.95); g.add(mir);
-  }
-
-  // steering wheel, which turns with your input
-  wheelMesh = new THREE.Group();
-  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.026, 8, 20), carbon);
-  wheelMesh.add(rim);
-  const bar = new THREE.Mesh(new THREE.BoxGeometry(0.31, 0.05, 0.03), carbon);
-  wheelMesh.add(bar);
-  const disp = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.05, 0.012),
-    new THREE.MeshBasicMaterial({ color: 0x39d98a }));
-  disp.position.set(0, 0.005, 0.02); wheelMesh.add(disp);
-  wheelMesh.position.set(0, -0.36, -0.52);
-  wheelMesh.rotation.x = -0.5;
-  g.add(wheelMesh);
-
-  g.renderOrder = 10;
-  return g;
-}
-
 // ---------- scene ----------
 function init() {
   const host = $('view');
@@ -933,9 +877,7 @@ function init() {
 
   car = buildCar(0x1f6f5c, 0x2fe0b0, true);
   scene.add(car);
-  cockpit = buildCockpit();
-  camera.add(cockpit);
-  scene.add(camera);           // camera must be in the graph for its child to render
+  scene.add(camera);
   const hues = [[0xc8342a, 0xf0a020], [0x1f4f8f, 0xffffff], [0xe0a01c, 0x202020],
                 [0x6b3a8f, 0xd0b0ff], [0x1d6b45, 0xa8f0c0]];
   for (let i = 0; i < FIELD; i++) {
@@ -971,7 +913,7 @@ function syncWorld(dt) {
   const info = placeOnTrack(car, dist, lat, yaw + slip, -steer * 0.06 - slip * 0.10);
   for (const r of rivals) placeOnTrack(r.obj, r.d, r.lat);
 
-  // chase camera, or cockpit
+  // chase camera, or driver's eye
   const u = ((dist % curveLen) + curveLen) % curveLen / curveLen;
   const ahead = curve.getPointAt((u + 0.012) % 1);
   const v = speed / MAX_SPEED;
@@ -986,23 +928,23 @@ function syncWorld(dt) {
   const rough = (Math.abs(lat) > ROAD_W ? 0.06 : 0.012) * v + hitWall * 0.28;
 
   if (camMode === 0) {
-    car.visible = false; cockpit.visible = true;
-    // Sit in the car and take its orientation, so the view swings with the nose
-    // instead of always facing down the track no matter which way you point.
+    car.visible = false;
+    // Ride above the car with no bodywork in the way, and take its orientation
+    // so the view swings with the nose instead of always facing down the track.
     camera.quaternion.copy(car.quaternion);
-    camera.position.copy(car.position).add(new THREE.Vector3(0, 1.12, 0));
+    camera.position.copy(car.position).add(new THREE.Vector3(0, 2.1, 0));
     camera.translateZ(0.35);
+    camera.rotateX(-0.07);                          // tip down to see the road
     camera.position.x += (Math.random() - 0.5) * rough;
     camera.position.y += (Math.random() - 0.5) * rough;
     camera.rotateZ(-steer * 0.05);                  // leans as you turn
   } else {
-    car.visible = true; cockpit.visible = false;
+    car.visible = true;
     const back = new THREE.Vector3(0, 0, 1).applyQuaternion(car.quaternion);
     const want = car.position.clone().addScaledVector(back, 8.6).add(new THREE.Vector3(0, 3.1, 0));
     camera.position.lerp(want, dt ? clamp(dt * 6, 0, 1) : 1);
     camera.lookAt(car.position.x, car.position.y + 1.1, car.position.z);
   }
-  if (wheelMesh) wheelMesh.rotation.z = -steer * 1.5;
   // brake lights
   const braking = keys.brake ? 1 : 0;
   if (car.userData.tail) car.userData.tail.material.color.setHex(braking ? 0xff5a4a : 0xff2418);
@@ -1206,7 +1148,7 @@ const KEY = { ArrowUp: 'gas', KeyW: 'gas', ArrowDown: 'brake', KeyS: 'brake',
               Space: 'drift', ShiftLeft: 'drift' };
 addEventListener('keydown', (e) => {
   if (e.code === 'KeyR') return begin();
-  if (e.code === 'KeyC') { camMode = camMode ? 0 : 1; return; }   // cockpit <-> chase
+  if (e.code === 'KeyC') { camMode = camMode ? 0 : 1; return; }   // driver's eye <-> chase
   if (e.code === 'KeyM') { Audio.setMuted(!Audio.isMuted()); paintMute(); return; }
   if (e.code === 'Space' && !$('panel').hidden) { e.preventDefault(); return $('go').click(); }
   const k = KEY[e.code];

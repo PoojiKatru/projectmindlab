@@ -44,14 +44,14 @@ const GRID = [[27, -4], [27, 4], [18, -4], [18, 4], [9, 4]];
 
 // Rival pace. `grip` is how hard each one dares to take a corner: the speed they
 // carry is MAX_SPEED * sqrt(grip / curvature). 6 is about what a flat-out,
-// never-lift lap from you manages; VOSS goes beyond it. `pull` scales the same
+// never-lift lap from you manages; VOSS is about level with it. `pull` scales the same
 // no-top-speed acceleration you have.
 const RIVALS = [
-  { name: 'VOSS',  grip: 6.8, pull: 1.04, defends: true },
-  { name: 'RAINE', grip: 6.3, pull: 1.02, defends: true },
-  { name: 'KOVA',  grip: 5.9, pull: 1.00, defends: false },
-  { name: 'ADLER', grip: 5.5, pull: 1.00, defends: false },
-  { name: 'SOLIS', grip: 5.1, pull: 0.98, defends: false },
+  { name: 'VOSS',  grip: 5.8, pull: 1.04, defends: true },
+  { name: 'RAINE', grip: 5.3, pull: 1.02, defends: true },
+  { name: 'KOVA',  grip: 4.9, pull: 1.00, defends: false },
+  { name: 'ADLER', grip: 4.5, pull: 1.00, defends: false },
+  { name: 'SOLIS', grip: 4.1, pull: 0.98, defends: false },
 ];
 let KS = null;                       // curvature every 2m, so looking ahead is cheap
 const kAt = (d) => KS[Math.floor((((d % curveLen) + curveLen) % curveLen) / 2) % KS.length];

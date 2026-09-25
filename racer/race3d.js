@@ -42,6 +42,20 @@ const lerp = (a, b, t) => a + (b - a) * t;
 // left; the rivals fill the rest. Everyone leaves on the same green light.
 const GRID = [[27, -4], [27, 4], [18, -4], [18, 4], [9, 4]];
 
+// Rival pace. `grip` is how hard each one dares to take a corner: the speed they
+// carry is MAX_SPEED * sqrt(grip / curvature). 6 is about what a flat-out,
+// never-lift lap from you manages; VOSS goes beyond it. `pull` scales the same
+// no-top-speed acceleration you have.
+const RIVALS = [
+  { name: 'VOSS',  grip: 6.8, pull: 1.04, defends: true },
+  { name: 'RAINE', grip: 6.3, pull: 1.02, defends: true },
+  { name: 'KOVA',  grip: 5.9, pull: 1.00, defends: false },
+  { name: 'ADLER', grip: 5.5, pull: 1.00, defends: false },
+  { name: 'SOLIS', grip: 5.1, pull: 0.98, defends: false },
+];
+let KS = null;                       // curvature every 2m, so looking ahead is cheap
+const kAt = (d) => KS[Math.floor((((d % curveLen) + curveLen) % curveLen) / 2) % KS.length];
+
 function fail(where, err) {
   const msg = `${where}: ${err && err.message ? err.message : err}`;
   try {
@@ -1017,6 +1031,8 @@ function init() {
   }
 
   buildCircuit();
+  KS = new Float32Array(Math.ceil(curveLen / 2));
+  for (let i = 0; i < KS.length; i++) KS[i] = curvatureAt(i * 2);
   if (TR.rain) buildWeather();
 
   car = buildCar(0x1f6f5c, 0x2fe0b0, true);
@@ -1027,11 +1043,7 @@ function init() {
   for (let i = 0; i < FIELD; i++) {
     const r = buildCar(hues[i][0], hues[i][1]);
     scene.add(r);
-    // Each rival has a fixed pace. VOSS at the front is the quickest; nobody is
-    // slower than MAX_SPEED any more, so you have to use the straights to pass.
-    rivals.push({ obj: r, d: GRID[i][0], lat: GRID[i][1], speed: 0, lap: 1, prev: 0,
-                  skill: 1.10 - i * 0.03,
-                  name: ['VOSS', 'RAINE', 'KOVA', 'ADLER', 'SOLIS'][i] });
+    rivals.push({ obj: r, d: GRID[i][0], lat: GRID[i][1], speed: 0, lap: 1, prev: 0, ...RIVALS[i] });
   }
 
   reset();
@@ -1179,24 +1191,45 @@ function step(dt) {
 
   // Rivals sit on the grid until the lights go out, same as you.
   if (started || over) for (const r of rivals) {
-    // Brake for the corner coming up, not the one they are already in.
-    const rk = Math.max(Math.abs(curvatureAt(r.d)), Math.abs(curvatureAt(r.d + r.speed * 0.8)));
-    // Racing, not cruising: a rival who has fallen behind you pushes harder,
-    // and one well clear eases off slightly, so the race stays close.
+    // Race order, not just who is nearby: positive means they are behind you.
     const behind = ((lap - 1) * curveLen + dist) - ((r.lap - 1) * curveLen + r.d);
-    const push = over ? 1 : 1 + clamp(behind / 400, -0.04, 0.14);
-    const target = MAX_SPEED * r.skill * push * (1 - Math.min(0.32, rk * 0.12));
-    // They launch with the same acceleration you have, just a touch more.
-    r.speed = r.speed < target ? Math.min(target, r.speed + ACCEL * 1.08 * dt)
-                               : lerp(r.speed, target, dt * 2.2);
-    r.lat = lerp(r.lat, clamp(-curvatureAt(r.d) * 3.4, -ROAD_W + 3, ROAD_W - 3), dt * (r.speed > 20 ? 1.2 : 0));
+    // Nobody gives up. Behind you, they take more out of every corner and
+    // squeeze more out of the straights until they are back on your gearbox.
+    const chase = over ? 0 : clamp(behind / 600, 0, 0.25);
+    const grip = r.grip * (1 + chase), pull = r.pull * (1 + chase * 0.4);
+    // The fastest they can be going here and still make every corner ahead,
+    // braking as hard as you can. Past that they brake; below it they go flat out.
+    let cap = Infinity;
+    const reach = Math.min(1600, r.speed * r.speed / (-2 * BRAKE) + 30);
+    for (let x = 0; x <= reach; x += 4) {
+      const k = Math.abs(kAt(r.d + x));
+      if (k > 1e-3) cap = Math.min(cap, Math.sqrt(MAX_SPEED * MAX_SPEED * grip / k - 2 * BRAKE * x));
+    }
+    if (r.speed < cap) r.speed = Math.min(cap, r.speed + (r.speed > MAX_SPEED ? ACCEL * MAX_SPEED / r.speed : ACCEL) * pull * dt);
+    else r.speed = Math.max(cap, r.speed + BRAKE * dt);
+
+    // Where on the road. Left alone they take the inside of the corner; close
+    // behind you and quicker, they pull out and go round; with you close
+    // behind and quicker, the top two move across to shut the door.
+    const rel = ((r.d - dist + curveLen * 1.5) % curveLen) - curveLen * 0.5;   // + = ahead of you
+    let want = clamp(-kAt(r.d) * 3.4, -ROAD_W + 3, ROAD_W - 3), rate = 1.2;
+    if (started && rel < 0 && rel > -70 && r.speed > speed + 2) {
+      let side = r.lat >= lat ? 1 : -1;
+      if (Math.abs(lat + side * 6.5) > ROAD_W - 2) side = -side;
+      want = lat + side * 6.5; rate = 2.6;
+    } else if (started && r.defends && rel > 0 && rel < 35 && speed > r.speed) {
+      want = lat; rate = 0.9;
+    }
+    r.lat = lerp(r.lat, clamp(want, -ROAD_W + 2, ROAD_W - 2), clamp(dt * (r.speed > 20 ? rate : 0), 0, 1));
     r.prev = r.d;
     r.d += r.speed * dt;
     if (r.d >= curveLen) { r.d -= curveLen; r.lap++; }
     // contact
     const gap = Math.abs(((r.d - dist + curveLen * 1.5) % curveLen) - curveLen * 0.5);
     if (gap < 4.2 && Math.abs(r.lat - lat) < 2.2 && started && !over) {
-      speed *= 0.72; lat += (lat > r.lat ? 1 : -1) * 1.4;
+      const ahead = ((r.d - dist + curveLen * 1.5) % curveLen) - curveLen * 0.5 > 0;
+      if (ahead) { speed *= 0.72; lat += (lat > r.lat ? 1 : -1) * 1.4; }   // you ran into them
+      else { r.speed = Math.min(r.speed, speed); r.lat += (r.lat > lat ? 1 : -1) * 1.4; }  // they tagged you
     }
   }
   syncWorld(dt);

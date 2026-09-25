@@ -38,6 +38,10 @@ let fpsT = 0, fpsN = 0;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const lerp = (a, b, t) => a + (b - a) * t;
 
+// Starting grid: two abreast, rows 9 m apart. You take the last slot on the
+// left; the rivals fill the rest. Everyone leaves on the same green light.
+const GRID = [[27, -4], [27, 4], [18, -4], [18, 4], [9, 4]];
+
 function fail(where, err) {
   const msg = `${where}: ${err && err.message ? err.message : err}`;
   try {
@@ -1023,8 +1027,10 @@ function init() {
   for (let i = 0; i < FIELD; i++) {
     const r = buildCar(hues[i][0], hues[i][1]);
     scene.add(r);
-    rivals.push({ obj: r, d: (i + 1) * 34, lat: (i % 2 ? 1 : -1) * (2 + Math.random() * 4),
-                  speed: MAX_SPEED * (0.78 + Math.random() * 0.12), lap: 1, prev: 0,
+    // Each rival has a fixed pace. VOSS at the front is the quickest; nobody is
+    // slower than MAX_SPEED any more, so you have to use the straights to pass.
+    rivals.push({ obj: r, d: GRID[i][0], lat: GRID[i][1], speed: 0, lap: 1, prev: 0,
+                  skill: 1.10 - i * 0.03,
                   name: ['VOSS', 'RAINE', 'KOVA', 'ADLER', 'SOLIS'][i] });
   }
 
@@ -1045,7 +1051,8 @@ function resize() {
 function reset() {
   dist = 0; lat = 0; speed = 0; steer = 0; yaw = 0; slip = 0; hitWall = 0;
   lap = 1; lapTime = 0; over = false; started = false; finalPos = null;
-  rivals.forEach((r, i) => { r.d = (i + 1) * 34; r.lap = 1; r.prev = 0; });
+  lat = -4;
+  rivals.forEach((r, i) => { r.d = GRID[i][0]; r.lat = GRID[i][1]; r.speed = 0; r.lap = 1; r.prev = 0; });
   syncWorld(0);
 }
 
@@ -1170,10 +1177,19 @@ function step(dt) {
     dist -= curveLen;
   } else if (dist >= curveLen) dist -= curveLen;
 
-  for (const r of rivals) {
-    const rk = Math.abs(curvatureAt(r.d));
-    r.speed = lerp(r.speed, MAX_SPEED * (0.80 + Math.random() * 0.12) * (1 - Math.min(0.42, rk * 0.17)), dt * 1.4);
-    r.lat = lerp(r.lat, clamp(-curvatureAt(r.d) * 3.4, -ROAD_W + 3, ROAD_W - 3), dt * 1.2);
+  // Rivals sit on the grid until the lights go out, same as you.
+  if (started || over) for (const r of rivals) {
+    // Brake for the corner coming up, not the one they are already in.
+    const rk = Math.max(Math.abs(curvatureAt(r.d)), Math.abs(curvatureAt(r.d + r.speed * 0.8)));
+    // Racing, not cruising: a rival who has fallen behind you pushes harder,
+    // and one well clear eases off slightly, so the race stays close.
+    const behind = ((lap - 1) * curveLen + dist) - ((r.lap - 1) * curveLen + r.d);
+    const push = over ? 1 : 1 + clamp(behind / 400, -0.04, 0.14);
+    const target = MAX_SPEED * r.skill * push * (1 - Math.min(0.32, rk * 0.12));
+    // They launch with the same acceleration you have, just a touch more.
+    r.speed = r.speed < target ? Math.min(target, r.speed + ACCEL * 1.08 * dt)
+                               : lerp(r.speed, target, dt * 2.2);
+    r.lat = lerp(r.lat, clamp(-curvatureAt(r.d) * 3.4, -ROAD_W + 3, ROAD_W - 3), dt * (r.speed > 20 ? 1.2 : 0));
     r.prev = r.d;
     r.d += r.speed * dt;
     if (r.d >= curveLen) { r.d -= curveLen; r.lap++; }

@@ -391,11 +391,13 @@ code{font-family:var(--tw);font-size:16px;background:var(--ice);padding:1px 5px}
         }
       </style>
       <h2 id="ups-h">Upcoming sessions</h2>
-      <div id="ups-out"></div>
+      <div class="ups-out"></div>
       <script>
       (function(){
-        // Edit this list. date is YYYY-MM-DD. spots: 0 shows "Join waitlist". link is optional.
+        // Edit this list. date is YYYY-MM-DD. spots: 0 shows "Join waitlist"; leave it out to hide the count.
+        // time, note and link are optional. Renders into every .ups-out on the site (home and Sessions).
         var SESSIONS = [
+          {date:"2026-11-14", time:"9:00–11:00 AM", title:"Game Theory Workshop", place:"Room 910, Oxford Academy, Cypress", grades:"7–9", note:"For students at AUHSD schools", link:"https://luma.com/67ldptn0"},
           // {date:"2026-12-04", title:"Why does it cost that?", place:"Room 12, Example Middle School, Los Angeles", grades:"6–7", spots:24, link:"https://tally.so/r/xxxx"},
         ];
         // Where buttons go when a session has no link, and where the empty-state button goes.
@@ -414,22 +416,25 @@ code{font-family:var(--tw);font-size:16px;background:var(--ice);padding:1px 5px}
           .filter(function(x){return x.d&&x.d>=today;})
           .sort(function(a,b){return a.d-b.d;});
 
-        var out=document.getElementById("ups-out");
+        var html;
         if(!list.length){
-          out.innerHTML='<div class="ups-empty"><p>Nothing is scheduled yet. We’re looking for a first classroom in Los Angeles.</p>'+
+          html='<div class="ups-empty"><p>Nothing is scheduled yet. We’re looking for a first classroom in Los Angeles.</p>'+
             '<p class="ups-meta">Teachers, parents, and students can sign up to hear when the first session is set.</p>'+
             btn(GENERAL_SIGNUP,"Sign up")+'</div>';
-          return;
+        }else{
+          html='<ul class="ups-list">'+list.map(function(x){
+            var s=x.s, full=Number(s.spots)===0;
+            var meta=[s.time, s.place, s.grades?"Grades "+s.grades:"", full?"Full":(s.spots!=null?s.spots+" spots left":"")].filter(Boolean).map(esc).join(" · ");
+            return '<li class="ups-row">'+
+              '<div class="ups-date" aria-label="'+x.d.toDateString()+'"><span class="ups-mon">'+MON[x.d.getMonth()]+'</span><span class="ups-day">'+x.d.getDate()+'</span></div>'+
+              '<div class="ups-body"><p class="ups-title">'+esc(s.title)+'</p><p class="ups-meta">'+meta+'</p>'+(s.note?'<p class="ups-meta">'+esc(s.note)+'</p>':'')+'</div>'+
+              btn(s.link||GENERAL_SIGNUP, full?"Join waitlist":"Sign up", full?"wait":"")+
+            '</li>';
+          }).join("")+'</ul>';
         }
-        out.innerHTML='<ul class="ups-list">'+list.map(function(x){
-          var s=x.s, full=Number(s.spots)===0;
-          var meta=[s.place, s.grades?"Grades "+s.grades:"", full?"Full":(s.spots!=null?s.spots+" spots left":"")].filter(Boolean).map(esc).join(" · ");
-          return '<li class="ups-row">'+
-            '<div class="ups-date" aria-label="'+x.d.toDateString()+'"><span class="ups-mon">'+MON[x.d.getMonth()]+'</span><span class="ups-day">'+x.d.getDate()+'</span></div>'+
-            '<div class="ups-body"><p class="ups-title">'+esc(s.title)+'</p><p class="ups-meta">'+meta+'</p></div>'+
-            btn(s.link||GENERAL_SIGNUP, full?"Join waitlist":"Sign up", full?"wait":"")+
-          '</li>';
-        }).join("")+'</ul>';
+        // The Sessions page sits later in the document, so render once everything is parsed.
+        function render(){[].forEach.call(document.querySelectorAll(".ups-out"),function(el){el.innerHTML=html;});}
+        if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",render);else render();
       })();
       </script>
     </section>
@@ -468,6 +473,11 @@ code{font-family:var(--tw);font-size:16px;background:var(--ice);padding:1px 5px}
     <p>Rather than relying on traditional lectures, our sessions will prioritize active participation. Concepts from the book will be reinforced through interactive discussions, hands-on activities, games, experiments, challenges, and real-world scenarios. Students will have opportunities to ask questions, work collaboratively, test ideas, and apply what they learn beyond the page.
 </p>
     <p>Our goal is to make each session both educational and memorable by presenting challenging concepts in a way that feels approachable and fun. By combining the structured content of the book with creative and engaging activities, Mindlab aims to create an environment where students are encouraged to think critically, explore new ideas, and actively participate in their own learning.</p>
+
+    <section class="ups" aria-labelledby="ups-h2">
+      <h2 id="ups-h2">Upcoming sessions</h2>
+      <div class="ups-out"></div>
+    </section>
   </div>
 </div>
 

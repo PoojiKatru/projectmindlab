@@ -8,7 +8,7 @@
 /*
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
-  # SAMEORIGIN, not DENY: /#/data frames game/ from this same origin.
+  # SAMEORIGIN, not DENY, in case a page frames another from this same origin.
   # Cross-origin framing is still blocked, which is the clickjacking risk.
   X-Frame-Options: SAMEORIGIN
   Permissions-Policy: geolocation=(), microphone=(), camera=(), interest-cohort=()

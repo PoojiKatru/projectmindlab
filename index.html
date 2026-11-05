@@ -343,7 +343,6 @@ code{font-family:var(--tw);font-size:16px;background:var(--ice);padding:1px 5px}
   <nav>
     <a href="#/sessions" data-n="sessions">Sessions</a>
     <a href="#/book" data-n="book">The Book</a>
-    <a href="#/data" data-n="data">The Trust Table</a>
     <a href="#/run" data-n="run">City Dash</a>
     <a href="#/about" data-n="about">About Us</a>
   </nav>
@@ -518,12 +517,6 @@ code{font-family:var(--tw);font-size:16px;background:var(--ice);padding:1px 5px}
   </div>
 </div>
 
-<!-- DATA -->
-<div class="page" id="p-data">
-  <iframe class="gameframe" src="game/index.html" title="The Trust Table"
-          loading="lazy"></iframe>
-</div>
-
 <!-- CITY DASH -->
 <div class="page" id="p-run">
   <iframe class="gameframe" src="runner/index.html" title="City Dash" loading="lazy"></iframe>
@@ -609,7 +602,7 @@ code{font-family:var(--tw);font-size:16px;background:var(--ice);padding:1px 5px}
   });
 })();
 
-var PAGES=['home','sessions','book','data','run','about'];
+var PAGES=['home','sessions','book','run','about'];
 function route(){
   var h=location.hash.replace('#/','')||'home';
   if(PAGES.indexOf(h)<0)h='home';

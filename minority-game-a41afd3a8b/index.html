@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Minority Game · Mindlab</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:SOFT,WONK,opsz,wght@0..100,0..1,9..144,400..700&family=Karla:wght@400;500;600;700&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --cream:#EFE7DA;--cream-lt:#F7F2E8;--cream-dk:#E2D8C7;
+  --navy:#0E2243;--blue:#2E5F9E;--mid:#6B6353;
+  --red:#B4442E;--team-blue:#2E5F9E;
+  --disp:"Fraunces",Georgia,serif;--ui:"Karla",-apple-system,sans-serif;--tw:"Courier Prime","Courier New",monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--cream);color:var(--navy);font-family:var(--ui);font-size:16.5px;line-height:1.55;-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-family:var(--disp);font-weight:600;line-height:1.12;letter-spacing:-.012em;margin:0;font-variation-settings:'SOFT' 40,'WONK' 1,'opsz' 40}
+button{font-family:inherit;font-size:15px;font-weight:600;padding:7px 14px;border:1.5px solid var(--navy);background:transparent;color:var(--navy);border-radius:3px;cursor:pointer}
+button:hover{background:var(--navy);color:var(--cream)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.go{background:var(--navy);color:var(--cream)}
+.go:hover{background:var(--blue);border-color:var(--blue)}
+.ghost{border-color:var(--cream-dk);font-weight:500}
+.wrap{max-width:1180px;margin:0 auto;padding:22px 24px 60px}
+
+header.top{display:flex;align-items:center;gap:16px;flex-wrap:wrap;justify-content:space-between;padding-bottom:18px;border-bottom:1px solid var(--cream-dk)}
+.brand{display:flex;align-items:center;gap:14px}
+.brand svg{width:44px;height:44px;flex:0 0 auto}
+.brand h1{font-size:30px}
+.brand p{margin:2px 0 0;color:var(--mid);font-size:14.5px}
+.tools{display:flex;gap:8px;flex-wrap:wrap}
+
+.rounds{display:flex;gap:8px;flex-wrap:wrap;align-items:stretch;margin:20px 0 6px}
+.rtab{text-align:left;padding:9px 16px;border:1.5px solid var(--navy);background:var(--cream-lt);line-height:1.25}
+.rtab small{display:block;font-weight:500;font-size:13px;color:var(--mid)}
+.rtab.on{background:var(--navy);color:var(--cream)}
+.rtab.on small{color:#C9D6E8}
+.rtab:hover small{color:inherit}
+.rule{font-size:14.5px;color:var(--mid);margin:8px 0 0}
+
+.grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:28px;margin-top:22px;align-items:start}
+.panel-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:12px}
+.panel-h h2{font-size:22px}
+.panel-h span{font-size:13.5px;color:var(--mid)}
+
+.tables{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:12px}
+.tcard{background:var(--cream-lt);border:1px solid var(--cream-dk);padding:12px 14px 12px}
+.tname{display:flex;align-items:center;gap:6px;margin-bottom:10px}
+.tname input{flex:1;min-width:0;font-family:var(--disp);font-size:18px;font-weight:600;color:var(--navy);border:none;border-bottom:1px dashed transparent;background:transparent;padding:2px 0}
+.tname input:hover,.tname input:focus{border-bottom-color:var(--cream-dk);outline:none}
+.tname .x{border:none;padding:2px 6px;font-size:18px;line-height:1;color:var(--mid);font-weight:400}
+.tname .x:hover{background:transparent;color:var(--red)}
+.cnt{display:grid;grid-template-columns:62px 34px 1fr 34px;align-items:center;gap:6px;margin:6px 0}
+.cnt .lab{display:flex;align-items:center;gap:7px;font-weight:600;font-size:15px}
+.sw{width:12px;height:12px;border-radius:2px;display:inline-block}
+.sw.r{background:var(--red)}.sw.b{background:var(--team-blue)}
+.cnt button{padding:0;height:34px;font-size:20px;line-height:1;font-weight:500}
+.cnt input{width:100%;height:34px;text-align:center;font-family:var(--tw);font-size:20px;font-weight:700;border:1.5px solid var(--cream-dk);background:#fff;color:var(--navy);border-radius:3px;-moz-appearance:textfield}
+.cnt input::-webkit-outer-spin-button,.cnt input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.split{display:flex;gap:2px;height:10px;margin:10px 0 8px;background:transparent}
+.split i{display:block;height:100%}
+.split i.r{background:var(--red);border-radius:4px 0 0 4px}
+.split i.b{background:var(--team-blue);border-radius:0 4px 4px 0}
+.split i:only-child{border-radius:4px}
+.split.empty{background:var(--cream-dk);border-radius:4px}
+.verdict{font-size:14px;font-weight:600;min-height:21px}
+.verdict.none{color:var(--mid);font-weight:500}
+.addt{margin-top:12px}
+
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px}
+.stat{background:var(--cream-lt);border:1px solid var(--cream-dk);padding:12px 14px}
+.stat b{display:block;font-family:var(--disp);font-size:34px;line-height:1;font-weight:600}
+.stat span{display:block;font-size:13px;color:var(--mid);margin-top:6px;line-height:1.3}
+.card{background:var(--cream-lt);border:1px solid var(--cream-dk);padding:16px 18px;margin-bottom:16px}
+.card h3{font-size:17px;margin-bottom:4px}
+.card .sub{font-size:13.5px;color:var(--mid);margin:0 0 14px}
+.legend{display:flex;gap:16px;font-size:13.5px;margin-bottom:10px}
+.legend span{display:flex;align-items:center;gap:6px}
+.bigsplit{display:flex;gap:2px;height:34px}
+.bigsplit i{display:flex;align-items:center;padding:0 10px;color:#fff;font-style:normal;font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden}
+.bigsplit i.r{background:var(--red);border-radius:4px 0 0 4px;justify-content:flex-start}
+.bigsplit i.b{background:var(--team-blue);border-radius:0 4px 4px 0;justify-content:flex-end}
+.bigsplit i:only-child{border-radius:4px}
+.bigsplit.empty{background:var(--cream-dk);border-radius:4px}
+.roomnote{font-size:14px;margin:10px 0 0}
+.cmp{display:grid;grid-template-columns:auto 1fr auto;gap:10px 12px;align-items:center}
+.cmp .rl{font-size:14px;font-weight:600;white-space:nowrap}
+.cmp .rl small{display:block;font-weight:500;color:var(--mid);font-size:12.5px}
+.track{position:relative;height:22px;border-bottom:1px solid var(--cream-dk)}
+.track i{position:absolute;left:0;bottom:0;height:20px;background:var(--navy);border-radius:0 4px 4px 0;min-width:2px}
+.track.cur i{background:var(--blue)}
+.cmp .pv{font-family:var(--tw);font-weight:700;font-size:15px;min-width:4.2em;text-align:right}
+.insight{font-size:15px;margin:14px 0 0;padding-top:12px;border-top:1px solid var(--cream-dk)}
+.foot{font-size:13px;color:var(--mid);margin-top:26px}
+.tip{position:fixed;pointer-events:none;background:var(--navy);color:var(--cream);font-size:13px;padding:6px 9px;border-radius:3px;z-index:10;display:none;max-width:240px;line-height:1.35}
+
+/* Projector view: hide the editing chrome, make results huge */
+body.present .edit-only{display:none!important}
+body.present .grid{grid-template-columns:1fr}
+body.present .stats b{font-size:64px}
+body.present .stat span{font-size:16px}
+body.present .card h3{font-size:24px}
+body.present .bigsplit{height:60px}
+body.present .bigsplit i{font-size:22px}
+body.present .track{height:34px}
+body.present .track i{height:32px}
+body.present .cmp .rl{font-size:18px}
+body.present .cmp .pv{font-size:22px}
+body.present .insight{font-size:20px}
+.present-only{display:none}
+body.present .present-only{display:block}
+.ptables{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
+.pt{background:var(--cream-lt);border:1px solid var(--cream-dk);padding:10px 12px}
+.pt b{font-family:var(--disp);font-size:18px}
+.pt .verdict{font-size:15px}
+
+@media(max-width:900px){.grid{grid-template-columns:1fr}}
+@media(max-width:560px){
+  .wrap{padding:16px 16px 48px}
+  .brand h1{font-size:24px}
+  .stats{grid-template-columns:1fr 1fr 1fr;gap:8px}
+  .stat{padding:10px}
+  .stat b{font-size:26px}
+  .tables{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <svg viewBox="466 243 1000 1000" aria-hidden="true"><rect x="466" y="243" width="1000" height="1000" rx="180" fill="#132142"/><path fill="#fff" d="M706 383H1238V464H831L1075 716V743L1067 757L815 1023H1242V1104H690V1033L953 757L973 729L706 453Z"/><rect x="557" y="729" width="818" height="28" fill="#2E5F9E"/></svg>
+      <div><h1>The Minority Game</h1><p>Circle a color. Reveal by table. The smallest group wins.</p></div>
+    </div>
+    <div class="tools">
+      <button id="present" class="go">Present</button>
+      <button id="csv" class="ghost edit-only">Export CSV</button>
+      <button id="reset" class="ghost edit-only">Reset</button>
+    </div>
+  </header>
+
+  <nav class="rounds" id="rounds" aria-label="Rounds"></nav>
+  <p class="rule" id="rule"></p>
+
+  <div class="grid">
+    <section class="edit-only" aria-labelledby="th">
+      <div class="panel-h"><h2 id="th">Tables</h2><span>Enter how many circled each color</span></div>
+      <div class="tables" id="tables"></div>
+      <button class="addt" id="addt">+ Add table</button>
+    </section>
+
+    <section aria-labelledby="rh">
+      <div class="panel-h"><h2 id="rh">Results</h2><span id="rhs"></span></div>
+      <div class="stats" id="stats"></div>
+
+      <div class="card">
+        <h3>The whole room</h3>
+        <p class="sub">Every student this round, red vs blue</p>
+        <div class="legend"><span><i class="sw r"></i>Red</span><span><i class="sw b"></i>Blue</span></div>
+        <div id="room"></div>
+        <p class="roomnote" id="roomnote"></p>
+      </div>
+
+      <div class="card">
+        <h3>Who won, round by round</h3>
+        <p class="sub">Share of students who ended up in their table’s minority</p>
+        <div class="cmp" id="cmp"></div>
+        <p class="insight" id="insight"></p>
+      </div>
+
+      <div class="card present-only">
+        <h3>By table</h3>
+        <p class="sub" style="margin-bottom:10px"></p>
+        <div class="ptables" id="ptables"></div>
+      </div>
+    </section>
+  </div>
+  <p class="foot edit-only">Saved in this browser as you type. Use the same laptop for the whole session, and Export CSV at the end to keep the numbers.</p>
+</div>
+<div class="tip" id="tip" role="tooltip"></div>
+
+<script>
+(function(){
+  var KEY="mindlab-minority-game-v1";
+  function fresh(){
+    var t=[];for(var i=1;i<=6;i++)t.push({id:"t"+i,name:"Table "+i});
+    return {cur:"r1",tables:t,nextT:7,nextR:3,
+      rounds:[{id:"r1",name:"Round 1",sub:"Trust your instincts",rule:"10 seconds. Choose red or blue. No talking!"},
+              {id:"r2",name:"Round 2",sub:"Collaboration",rule:"30 seconds. Discuss a strategy with your neighbor."}],
+      data:{}};
+  }
+  var S;
+  try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){}
+  if(!S||!S.tables||!S.rounds)S=fresh();
+  function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+
+  var $=function(id){return document.getElementById(id)};
+  function esc(s){return String(s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
+  function cell(rid,tid){var d=(S.data[rid]||{})[tid];return d||{r:0,b:0}}
+  function setCell(rid,tid,k,v){S.data[rid]=S.data[rid]||{};var d=S.data[rid][tid]||{r:0,b:0};d[k]=Math.max(0,Math.min(999,v|0));S.data[rid][tid]=d;save()}
+  function pct(x){return Math.round(x*100)+"%"}
+
+  // One table's outcome: the smaller color wins; a tie or a single color means no minority.
+  function judge(c){
+    var n=c.r+c.b;
+    if(!n)return {n:0,w:0,txt:"No votes yet",cls:"none"};
+    if(c.r===c.b)return {n:n,w:0,txt:"Tie: nobody wins",cls:""};
+    if(!c.r||!c.b)return {n:n,w:0,txt:"All "+(c.r?"red":"blue")+": no minority",cls:""};
+    var red=c.r<c.b;return {n:n,w:Math.min(c.r,c.b),txt:(red?"Red":"Blue")+" wins ("+Math.min(c.r,c.b)+" of "+n+")",cls:"",col:red?"r":"b"};
+  }
+  function roundStats(rid){
+    var s={players:0,winners:0,red:0,blue:0,tables:0,wins:0,ties:0,mono:0};
+    S.tables.forEach(function(t){
+      var c=cell(rid,t.id),j=judge(c);if(!j.n)return;
+      s.tables++;s.players+=j.n;s.winners+=j.w;s.red+=c.r;s.blue+=c.b;
+      if(j.w)s.wins++;else if(c.r===c.b)s.ties++;else s.mono++;
+    });
+    return s;
+  }
+  function splitBar(r,b,big){
+    var n=r+b,cls=big?"bigsplit":"split";
+    if(!n)return '<div class="'+cls+' empty"></div>';
+    var h='<div class="'+cls+'">';
+    if(r)h+='<i class="r" style="flex:'+r+'" data-tip="Red: '+r+' of '+n+' ('+pct(r/n)+')">'+(big?r+' red':'')+'</i>';
+    if(b)h+='<i class="b" style="flex:'+b+'" data-tip="Blue: '+b+' of '+n+' ('+pct(b/n)+')">'+(big?b+' blue':'')+'</i>';
+    return h+'</div>';
+  }
+
+  function renderRounds(){
+    $("rounds").innerHTML=S.rounds.map(function(r){
+      return '<button class="rtab'+(r.id===S.cur?' on':'')+'" data-r="'+r.id+'">'+esc(r.name)+'<small>'+esc(r.sub)+'</small></button>';
+    }).join("")+'<button class="rtab edit-only" id="addr">+ Round<small>Play again</small></button>';
+    var cur=S.rounds.filter(function(r){return r.id===S.cur})[0];
+    $("rule").textContent=cur&&cur.rule?cur.rule:"";
+  }
+  function tableCard(t){
+    var c=cell(S.cur,t.id),j=judge(c);
+    function row(k,label){
+      return '<div class="cnt"><span class="lab"><i class="sw '+k+'"></i>'+label+'</span>'+
+        '<button data-act="dec" data-t="'+t.id+'" data-k="'+k+'" aria-label="One less '+label+' at '+esc(t.name)+'">−</button>'+
+        '<input type="number" inputmode="numeric" min="0" value="'+c[k]+'" data-t="'+t.id+'" data-k="'+k+'" aria-label="'+label+' at '+esc(t.name)+'">'+
+        '<button data-act="inc" data-t="'+t.id+'" data-k="'+k+'" aria-label="One more '+label+' at '+esc(t.name)+'">+</button></div>';
+    }
+    return '<div class="tcard" data-card="'+t.id+'"><div class="tname"><input value="'+esc(t.name)+'" data-name="'+t.id+'" aria-label="Table name">'+
+      '<button class="x" data-act="del" data-t="'+t.id+'" aria-label="Remove '+esc(t.name)+'" title="Remove table">×</button></div>'+
+      row("r","Red")+row("b","Blue")+splitBar(c.r,c.b)+'<div class="verdict '+j.cls+'">'+j.txt+'</div></div>';
+  }
+  function renderTables(){$("tables").innerHTML=S.tables.map(tableCard).join("")}
+  function refreshCard(tid){
+    var el=document.querySelector('[data-card="'+tid+'"]');if(!el)return;
+    var c=cell(S.cur,tid),j=judge(c);
+    el.querySelector(".split").outerHTML=splitBar(c.r,c.b);
+    var v=el.querySelector(".verdict");v.className="verdict "+j.cls;v.textContent=j.txt;
+    el.querySelectorAll('input[data-k]').forEach(function(i){if(document.activeElement!==i)i.value=c[i.dataset.k]});
+  }
+  function renderResults(){
+    var s=roundStats(S.cur),cur=S.rounds.filter(function(r){return r.id===S.cur})[0];
+    $("rhs").textContent=cur?cur.name:"";
+    $("stats").innerHTML=
+      '<div class="stat"><b>'+s.players+'</b><span>students voted</span></div>'+
+      '<div class="stat"><b>'+s.winners+'</b><span>won (in their table’s minority)</span></div>'+
+      '<div class="stat"><b>'+(s.players?pct(s.winners/s.players):"–")+'</b><span>of the room won</span></div>';
+    $("room").innerHTML=splitBar(s.red,s.blue,true);
+    var rn="";
+    if(s.players){
+      rn=s.red===s.blue?"The room split exactly in half.":
+        ((s.red<s.blue?"Red":"Blue")+" was the room’s minority: "+Math.min(s.red,s.blue)+" of "+s.players+" students.");
+      rn+=" "+s.wins+" of "+s.tables+" tables had a winner"+(s.ties?", "+s.ties+" tied":"")+(s.mono?", "+s.mono+" all picked one color":"")+".";
+    }else rn="Enter each table’s votes to see the room.";
+    $("roomnote").textContent=rn;
+
+    var rows=S.rounds.map(function(r){return {r:r,s:roundStats(r.id)}});
+    $("cmp").innerHTML=rows.map(function(x){
+      var p=x.s.players?x.s.winners/x.s.players:0,has=x.s.players>0;
+      return '<div class="rl">'+esc(x.r.name)+'<small>'+esc(x.r.sub)+'</small></div>'+
+        '<div class="track'+(x.r.id===S.cur?' cur':'')+'" data-tip="'+esc(x.r.name)+': '+(has?x.s.winners+' of '+x.s.players+' students won':'no votes yet')+'">'+(has?'<i style="width:'+(p*100)+'%"></i>':'')+'</div>'+
+        '<div class="pv">'+(has?pct(p):'–')+'</div>';
+    }).join("");
+    var done=rows.filter(function(x){return x.s.players});
+    var ins="";
+    if(done.length>=2){
+      var a=done[0],b=done[done.length-1],pa=a.s.winners/a.s.players,pb=b.s.winners/b.s.players;
+      ins=b.r.name+": "+pct(pb)+" of students won, "+(pb>pa?"up":pb<pa?"down":"the same as")+(pb===pa?" ":" from ")+pct(pa)+" in "+a.r.name+". "+
+        (pb>pa?"Did talking really help, or did it just change who ended up small?":"Talking didn’t make winning easier. Why not?");
+    }else if(done.length===1)ins="Play another round to compare.";
+    $("insight").textContent=ins;
+
+    $("ptables").innerHTML=S.tables.map(function(t){
+      var c=cell(S.cur,t.id),j=judge(c);
+      return '<div class="pt"><b>'+esc(t.name)+'</b>'+splitBar(c.r,c.b)+'<div class="verdict '+j.cls+'">'+j.txt+'</div></div>';
+    }).join("");
+  }
+  function renderAll(){renderRounds();renderTables();renderResults()}
+
+  document.addEventListener("click",function(e){
+    var b=e.target.closest("button");if(!b)return;
+    if(b.dataset.r){S.cur=b.dataset.r;save();renderAll();return}
+    if(b.id==="addr"){
+      var n=S.rounds.length+1,id="r"+(S.nextR++);
+      S.rounds.push({id:id,name:"Round "+n,sub:"Play again",rule:""});S.cur=id;save();renderAll();return;
+    }
+    if(b.id==="addt"){S.tables.push({id:"t"+S.nextT,name:"Table "+S.nextT});S.nextT++;save();renderTables();renderResults();return}
+    var a=b.dataset.act,t=b.dataset.t,k=b.dataset.k;
+    if(a==="inc"||a==="dec"){setCell(S.cur,t,k,cell(S.cur,t)[k]+(a==="inc"?1:-1));refreshCard(t);renderResults();return}
+    if(a==="del"){
+      var tb=S.tables.filter(function(x){return x.id===t})[0];
+      if(confirm("Remove "+tb.name+" and its votes from every round?")){
+        S.tables=S.tables.filter(function(x){return x.id!==t});
+        Object.keys(S.data).forEach(function(r){delete S.data[r][t]});save();renderTables();renderResults();
+      }
+    }
+  });
+  document.addEventListener("input",function(e){
+    var i=e.target;
+    if(i.dataset.k){setCell(S.cur,i.dataset.t,i.dataset.k,parseInt(i.value,10)||0);refreshCard(i.dataset.t);renderResults()}
+    else if(i.dataset.name){S.tables.forEach(function(t){if(t.id===i.dataset.name)t.name=i.value||"Table"});save();renderResults()}
+  });
+  document.addEventListener("focusin",function(e){if(e.target.dataset&&e.target.dataset.k)e.target.select()});
+
+  $("present").onclick=function(){
+    var on=document.body.classList.toggle("present");this.textContent=on?"Edit":"Present";
+    if(on&&document.documentElement.requestFullscreen)document.documentElement.requestFullscreen().catch(function(){});
+    else if(!on&&document.fullscreenElement)document.exitFullscreen();
+  };
+  document.addEventListener("fullscreenchange",function(){
+    if(!document.fullscreenElement&&document.body.classList.contains("present")){document.body.classList.remove("present");$("present").textContent="Present"}
+  });
+  $("reset").onclick=function(){if(confirm("Clear every table and round? This can’t be undone.")){S=fresh();save();renderAll()}};
+  $("csv").onclick=function(){
+    var L=[["round","round_name","table","red","blue","total","result","winners"]];
+    S.rounds.forEach(function(r){S.tables.forEach(function(t){
+      var c=cell(r.id,t.id),j=judge(c);if(!j.n)return;
+      L.push([r.name,r.sub,t.name,c.r,c.b,j.n,j.txt,j.w]);
+    })});
+    var csv=L.map(function(row){return row.map(function(v){v=String(v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}).join(",")}).join("\n");
+    var a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
+    a.download="minority-game-"+new Date().toISOString().slice(0,10)+".csv";document.body.appendChild(a);a.click();a.remove();
+  };
+
+  var tip=$("tip");
+  document.addEventListener("mousemove",function(e){
+    var t=e.target.closest("[data-tip]");
+    if(!t){tip.style.display="none";return}
+    tip.textContent=t.dataset.tip;tip.style.display="block";
+    var x=Math.min(e.clientX+14,innerWidth-tip.offsetWidth-8);tip.style.left=x+"px";tip.style.top=(e.clientY+16)+"px";
+  });
+
+  renderAll();
+})();
+</script>
+</body>
+</html>

@@ -366,7 +366,7 @@ code{font-family:var(--tw);font-size:16px;background:var(--ice);padding:1px 5px}
     <p>Using our book as a guideline will give the children exposure to practice questions and easy-to-comprehend examples of the most critical aspects of each topic. We have 7 sections that cover 30 topics in total.</p>
 
     <!-- UPCOMING SESSIONS (self-contained: edit the SESSIONS array in the script below) -->
-    <section class="ups" id="ups" aria-labelledby="ups-h">
+    <section class="ups" id="ups" aria-labelledby="ups-h" hidden>
       <style>
         .ups{margin:34px 0 40px;font-family:inherit;color:#0E2243}
         .ups h2{margin:0 0 14px}
@@ -383,9 +383,6 @@ code{font-family:var(--tw);font-size:16px;background:var(--ice);padding:1px 5px}
         .ups-btn.wait{background:transparent;color:#0E2243}
         .ups-btn.wait:hover{background:#0E2243;color:#EFE7DA}
         .ups-btn:focus-visible{outline:2px solid #2E5F9E;outline-offset:2px}
-        .ups-empty{background:#F7F2E8;border:1px solid #E2D8C7;padding:20px 22px}
-        .ups-empty p{margin:0 0 14px;font-size:16.5px}
-        .ups-empty p.ups-meta{font-size:14.5px}
         @media(max-width:560px){
           .ups-row{flex-wrap:wrap;align-items:flex-start;gap:14px}
           .ups-body{flex-basis:calc(100% - 78px)}
@@ -402,7 +399,7 @@ code{font-family:var(--tw);font-size:16px;background:var(--ice);padding:1px 5px}
           {date:"2026-11-14", time:"9:00–11:00 AM", title:"Game Theory Workshop", place:"Room 910, Oxford Academy, Cypress", grades:"5–9", link:"https://luma.com/67ldptn0"},
           // {date:"2026-12-04", title:"Why does it cost that?", place:"Room 12, Example Middle School, Los Angeles", grades:"6–7", spots:24, link:"https://tally.so/r/xxxx"},
         ];
-        // Where buttons go when a session has no link, and where the empty-state button goes.
+        // Where buttons go when a session has no link. With nothing upcoming, the section hides itself.
         var GENERAL_SIGNUP = "mailto:projectmindlaborg@gmail.com?subject=Mindlab%20sign-up";
 
         var MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -418,12 +415,8 @@ code{font-family:var(--tw);font-size:16px;background:var(--ice);padding:1px 5px}
           .filter(function(x){return x.d&&x.d>=today;})
           .sort(function(a,b){return a.d-b.d;});
 
-        var html;
-        if(!list.length){
-          html='<div class="ups-empty"><p>Nothing is scheduled yet. We’re looking for a first classroom in Los Angeles.</p>'+
-            '<p class="ups-meta">Teachers, parents, and students can sign up to hear when the first session is set.</p>'+
-            btn(GENERAL_SIGNUP,"Sign up")+'</div>';
-        }else{
+        var html="";
+        if(list.length){
           html='<ul class="ups-list">'+list.map(function(x){
             var s=x.s, full=Number(s.spots)===0;
             var meta=[s.time, s.place, s.grades?"Grades "+s.grades:"", full?"Full":(s.spots!=null?s.spots+" spots left":"")].filter(Boolean).map(esc).join(" · ");
@@ -435,7 +428,10 @@ code{font-family:var(--tw);font-size:16px;background:var(--ice);padding:1px 5px}
           }).join("")+'</ul>';
         }
         // The Sessions page sits later in the document, so render once everything is parsed.
-        function render(){[].forEach.call(document.querySelectorAll(".ups-out"),function(el){el.innerHTML=html;});}
+        function render(){[].forEach.call(document.querySelectorAll(".ups-out"),function(el){
+          el.innerHTML=html;
+          var sec=el.closest(".ups"); if(sec) sec.hidden=!html;
+        });}
         if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",render);else render();
       })();
       </script>
@@ -476,9 +472,80 @@ code{font-family:var(--tw);font-size:16px;background:var(--ice);padding:1px 5px}
 </p>
     <p>Our goal is to make each session both educational and memorable by presenting challenging concepts in a way that feels approachable and fun. By combining the structured content of the book with creative and engaging activities, Mindlab aims to create an environment where students are encouraged to think critically, explore new ideas, and actively participate in their own learning.</p>
 
-    <section class="ups" aria-labelledby="ups-h2">
+    <section class="ups" aria-labelledby="ups-h2" hidden>
       <h2 id="ups-h2">Upcoming sessions</h2>
       <div class="ups-out"></div>
+    </section>
+
+    <!-- PAST SESSIONS. Photos live in /img/session-N/. -->
+    <section class="past" aria-labelledby="past-h">
+      <h2 id="past-h">Past sessions</h2>
+
+      <article class="sess">
+        <header class="sess-hd">
+          <div class="sess-date" aria-label="November 14, 2026"><span>Nov</span><b>14</b></div>
+          <div>
+            <p class="sess-no">Session 1</p>
+            <h3>Game Theory</h3>
+            <p class="sess-meta">Room 910, Oxford Academy, Cypress · Grades 5–9</p>
+          </div>
+        </header>
+
+        <p>Our first session. Two hours on one question: what should you do when the best choice depends on what everyone else chooses? We started with the vocabulary (players, choices, payoffs), then spent most of the morning playing the games ourselves and talking through what happened.</p>
+
+        <div class="plates">
+          <figure class="plate wide">
+            <a href="/img/session-1/students.jpg" target="_blank" rel="noopener"><img src="/img/session-1/students.jpg" alt="Students at their desks in Room 910 during the game theory session, smiling at the camera" loading="lazy" width="1050" height="1400"></a>
+            <figcaption><span>Fig. 1</span> Room 910, Oxford Academy.</figcaption>
+          </figure>
+          <figure class="plate">
+            <a href="/img/session-1/worksheets.jpg" target="_blank" rel="noopener"><img src="/img/session-1/worksheets.jpg" alt="Handwritten worksheets where students designed their own dilemmas: a split-or-steal coin chest, a last-second basketball pass, a race where a friend falls" loading="lazy" width="1050" height="1400"></a>
+            <figcaption><span>Fig. 2</span> Dilemmas the students wrote themselves. A coin chest you can split or steal, a last-second basketball pass, a race where your friend falls.</figcaption>
+          </figure>
+        </div>
+
+        <div class="log sess-log">
+          <ul>
+            <li><span class="d">01</span><span><b>Icebreaker.</b> Getting to know the room.</span></li>
+            <li><span class="d">02</span><span><b>What is game theory?</b> A game is any situation where your result depends on someone else’s choice.</span></li>
+            <li><span class="d">03</span><span><b>The Minority Game.</b> Everyone picks red or blue; the smaller side wins. Round 1 on instinct in 10 seconds, Round 2 after 30 seconds of talking.</span></li>
+            <li><span class="d">04</span><span><b>The Prisoner’s Dilemma.</b> Split or steal, and why two sensible players can both end up worse off.</span></li>
+            <li><span class="d">05</span><span><b>The arms race.</b> The U.S. and the USSR as the same dilemma, played with missiles.</span></li>
+            <li><span class="d">06</span><span><b>Write your own.</b> In groups, students built a dilemma from scratch: the situation, the two choices, and the trap.</span></li>
+          </ul>
+        </div>
+      </article>
+
+      <style>
+        .past{margin-top:52px}
+        .past>h2{margin:0 0 18px}
+        .sess{border-top:2px solid var(--navy);padding-top:22px}
+        .sess-hd{display:flex;gap:18px;align-items:center;margin-bottom:18px}
+        .sess-date{flex:0 0 auto;width:64px;border:1.5px solid var(--navy);background:var(--cream-lt);text-align:center;padding:6px 0 7px;line-height:1}
+        .sess-date span{display:block;font-variant:small-caps;text-transform:lowercase;font-size:15px;letter-spacing:.08em;color:var(--blue)}
+        .sess-date b{display:block;font-size:30px;font-weight:600;margin-top:3px}
+        .sess-no{font-family:var(--tw);font-size:13px;color:var(--blue);margin:0 0 2px}
+        .sess-hd h3{font-size:30px;margin:0;line-height:1.1}
+        .sess-meta{font-family:var(--ui);font-size:14.5px;color:var(--mid);margin:5px 0 0}
+        .plates{display:grid;grid-template-columns:1.25fr 1fr;gap:18px;margin:28px 0 8px;align-items:start}
+        .plate{margin:0}
+        .plate a{display:block;border:1px solid var(--cream-dk);background:var(--cream-lt);padding:8px}
+        .plate img{display:block;width:100%;height:auto;aspect-ratio:3/4;object-fit:cover;filter:saturate(.88)}
+        .plate a:hover img{filter:none}
+        .plate a:focus-visible{outline:2px solid var(--ochre);outline-offset:2px}
+        .plate figcaption{font-family:var(--tw);font-size:12.5px;line-height:1.5;color:var(--mid);margin-top:9px}
+        .plate figcaption span{color:var(--navy);margin-right:6px}
+        .plate:not(.wide){margin-top:46px}
+        .sess-log{margin-top:30px}
+        .sess-log li{grid-template-columns:44px 1fr;font-size:16.5px;line-height:1.55}
+        .sess-log b{font-weight:600}
+        @media(max-width:620px){
+          .plates{grid-template-columns:1fr}
+          .plate:not(.wide){margin-top:0}
+          .sess-hd h3{font-size:26px}
+          .sess-log li{grid-template-columns:36px 1fr}
+        }
+      </style>
     </section>
   </div>
 </div>

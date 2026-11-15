@@ -493,14 +493,30 @@ code{font-family:var(--tw);font-size:16px;background:var(--ice);padding:1px 5px}
 
         <p>Our first session. Two hours on one question: what should you do when the best choice depends on what everyone else chooses? We started with the vocabulary (players, choices, payoffs), then spent most of the morning playing the games ourselves and talking through what happened.</p>
 
-        <div class="plates">
-          <figure class="plate wide">
-            <a href="/img/session-1/students.jpg" target="_blank" rel="noopener"><img src="/img/session-1/students.jpg" alt="Students at their desks in Room 910 during the game theory session, smiling at the camera" loading="lazy" width="1050" height="1400"></a>
-            <figcaption><span>Fig. 1</span> Room 910, Oxford Academy.</figcaption>
+        <div class="plates one">
+          <figure class="plate ">
+            <a href="/img/session-1/presenting.jpg" target="_blank" rel="noopener"><img src="/img/session-1/presenting.jpg" alt="Three students at the front of the room presenting the dilemma they designed, with the example slide projected behind them" loading="lazy" width="1040" height="780"></a>
+            <figcaption><span>Fig. 1</span> A group presents its dilemma: the players, the two choices, the trap.</figcaption>
           </figure>
-          <figure class="plate">
-            <a href="/img/session-1/worksheets.jpg" target="_blank" rel="noopener"><img src="/img/session-1/worksheets.jpg" alt="Handwritten worksheets where students designed their own dilemmas: a split-or-steal coin chest, a last-second basketball pass, a race where a friend falls" loading="lazy" width="1050" height="1400"></a>
-            <figcaption><span>Fig. 2</span> Dilemmas the students wrote themselves. A coin chest you can split or steal, a last-second basketball pass, a race where your friend falls.</figcaption>
+        </div>
+        <div class="plates">
+          <figure class="plate p">
+            <a href="/img/session-1/students.jpg" target="_blank" rel="noopener"><img src="/img/session-1/students.jpg" alt="Students at their desks in Room 910, one giving a thumbs up" loading="lazy" width="1050" height="1400"></a>
+            <figcaption><span>Fig. 2</span> Thumbs up from the front row.</figcaption>
+          </figure>
+          <figure class="plate p drop">
+            <a href="/img/session-1/groupwork.jpg" target="_blank" rel="noopener"><img src="/img/session-1/groupwork.jpg" alt="Three students at a table drafting a dilemma on a sheet of paper" loading="lazy" width="855" height="1140"></a>
+            <figcaption><span>Fig. 3</span> Drafting a dilemma in groups.</figcaption>
+          </figure>
+        </div>
+        <div class="plates even">
+          <figure class="plate l">
+            <a href="/img/session-1/room.jpg" target="_blank" rel="noopener"><img src="/img/session-1/room.jpg" alt="The classroom during the session, students seated at tables facing a Mindlab instructor" loading="lazy" width="1120" height="747"></a>
+            <figcaption><span>Fig. 4</span> Room 910, Oxford Academy.</figcaption>
+          </figure>
+          <figure class="plate l">
+            <a href="/img/session-1/worksheets.jpg" target="_blank" rel="noopener"><img src="/img/session-1/worksheets.jpg" alt="Handwritten worksheets where students designed their own dilemmas: a split-or-steal coin chest, a last-second basketball pass, a race where a friend falls" loading="lazy" width="1050" height="1400" style="object-position:center 8%"></a>
+            <figcaption><span>Fig. 5</span> What the groups wrote: a coin chest you can split or steal, a last-second basketball pass, a race where your friend falls.</figcaption>
           </figure>
         </div>
 
@@ -527,21 +543,25 @@ code{font-family:var(--tw);font-size:16px;background:var(--ice);padding:1px 5px}
         .sess-no{font-family:var(--tw);font-size:13px;color:var(--blue);margin:0 0 2px}
         .sess-hd h3{font-size:30px;margin:0;line-height:1.1}
         .sess-meta{font-family:var(--ui);font-size:14.5px;color:var(--mid);margin:5px 0 0}
-        .plates{display:grid;grid-template-columns:1.25fr 1fr;gap:18px;margin:28px 0 8px;align-items:start}
+        .plates{display:grid;grid-template-columns:1.25fr 1fr;gap:18px;margin:18px 0 0;align-items:start}
+        .plates.one{grid-template-columns:1fr;margin-top:28px}
+        .plates.even{grid-template-columns:1fr 1fr}
         .plate{margin:0}
         .plate a{display:block;border:1px solid var(--cream-dk);background:var(--cream-lt);padding:8px}
-        .plate img{display:block;width:100%;height:auto;aspect-ratio:3/4;object-fit:cover;filter:saturate(.88)}
+        .plate img{display:block;width:100%;height:auto;filter:saturate(.88)}
+        .plate.p img{aspect-ratio:3/4;object-fit:cover}
+        .plate.l img{aspect-ratio:3/2;object-fit:cover}
         .plate a:hover img{filter:none}
         .plate a:focus-visible{outline:2px solid var(--ochre);outline-offset:2px}
         .plate figcaption{font-family:var(--tw);font-size:12.5px;line-height:1.5;color:var(--mid);margin-top:9px}
         .plate figcaption span{color:var(--navy);margin-right:6px}
-        .plate:not(.wide){margin-top:46px}
+        .plate.drop{margin-top:46px}
         .sess-log{margin-top:30px}
         .sess-log li{grid-template-columns:44px 1fr;font-size:16.5px;line-height:1.55}
         .sess-log b{font-weight:600}
         @media(max-width:620px){
-          .plates{grid-template-columns:1fr}
-          .plate:not(.wide){margin-top:0}
+          .plates,.plates.even{grid-template-columns:1fr}
+          .plate.drop{margin-top:0}
           .sess-hd h3{font-size:26px}
           .sess-log li{grid-template-columns:36px 1fr}
         }
